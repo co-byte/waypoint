@@ -1,0 +1,54 @@
+bundle:
+  name: waypoint-etl
+
+include:
+  - catalog/*.yaml
+  - ingestion/*/*.yaml
+  - transform/*/*.yaml
+
+variables:
+  catalog:
+    description: Unity Catalog that holds all tables
+    default: waypoint_catalog
+  bronze_schema:
+    default: bronze
+  opensky_state_vectors_table:
+    default: opensky_state_vectors
+  silver_schema:
+    default: silver
+  opensky_cleaned_table:
+    default: opensky_cleaned
+  opensky_enriched_table:
+    default: opensky_enriched
+  opensky_aircraft_category_table:
+    default: opensky_aircraft_category
+  opensky_position_source_table:
+    default: opensky_position_source
+  flight_state_changes_view:
+    default: flight_state_changes
+  aircraft_table:
+    default: aircraft
+  aircraft_changes_view:
+    default: aircraft_changes
+  flight_state_table:
+    default: flight_state
+  gold_schema:
+    default: gold
+  latest_flight_state_table:
+    default: latest_flight_state
+  reference_schema:
+    default: reference
+  opensky_token_url:
+    default: https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token
+  website_principal:
+    description: Application ID of the website's Cloudflare Worker - has read access to `silver` and `gold`
+    lookup:
+      # Created manually via the UI; matched by display name
+      service_principal: Cloudflare Worker
+
+targets:
+  prod:
+    default: true
+    mode: production
+    workspace:
+      root_path: ~/waypoint/.bundle/${bundle.name}/${bundle.target}
