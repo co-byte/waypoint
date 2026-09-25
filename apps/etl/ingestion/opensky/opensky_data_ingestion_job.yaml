@@ -1,0 +1,22 @@
+resources:
+  jobs:
+    opensky_data_ingestion_job:
+      name: opensky_data_ingestion_job
+      trigger:
+        pause_status: UNPAUSED
+        periodic:
+          interval: 3
+          unit: MINUTES
+      tasks:
+        - task_key: ingest_opensky_data
+          notebook_task:
+            notebook_path: ingest.py
+      parameters:
+        - name: OPENSKY_TOKEN_URL
+          default: ${var.opensky_token_url}
+        - name: CATALOG
+          default: ${var.catalog}
+        - name: BRONZE_SCHEMA
+          default: ${var.bronze_schema}
+        - name: OPENSKY_STATE_VECTORS_TABLE
+          default: ${var.opensky_state_vectors_table}
