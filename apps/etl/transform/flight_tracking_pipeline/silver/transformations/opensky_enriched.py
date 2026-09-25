@@ -5,6 +5,7 @@ FAIL_EXPECTATIONS = {}
 DROP_EXPECTATIONS = {}
 WARN_EXPECTATIONS = {}
 
+
 @dp.table(name="opensky_enriched", private=True)
 @dp.expect_all_or_fail(FAIL_EXPECTATIONS)
 @dp.expect_all_or_drop(DROP_EXPECTATIONS)

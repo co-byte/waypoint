@@ -8,10 +8,10 @@ WARN_EXPECTATIONS = {
     "plausible_vertical_rate": "vertical_rate IS NOT NULL and vertical_rate > -30",
     "plausible_geo_altitude": "geo_altitude IS NOT NULL and geo_altitude BETWEEN -450 and 15000",
     "plausible_velocity": "velocity IS NOT NULL and velocity < 300",
-
     ## Tuple-level constraints
-    "plausible_altitude_disagreement": "geo_altitude IS NOT NULL and baro_altitude IS NOT NULL and geo_altitude - baro_altitude BETWEEN -293 and 1017", # Static check for now, can be made dynamic later
+    "plausible_altitude_disagreement": "geo_altitude IS NOT NULL and baro_altitude IS NOT NULL and geo_altitude - baro_altitude BETWEEN -293 and 1017",  # Static check for now, can be made dynamic later
 }
+
 
 @dp.temporary_view(name="flight_state_changes")
 @dp.expect_all_or_fail(FAIL_EXPECTATIONS)
@@ -38,8 +38,8 @@ def aircraft():
             "spi",
             "position_source",
             "category",
-            "ingested_at"
-            )
+            "ingested_at",
+        )
     )
 
     for expectation, condition in WARN_EXPECTATIONS.items():
@@ -47,6 +47,7 @@ def aircraft():
         df = df.withColumn(outlier_indicator_column, ~F.expr(condition))
 
     return df
+
 
 dp.create_streaming_table("flight_state")
 

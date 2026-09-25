@@ -51,6 +51,7 @@ TOKEN_REFRESH_MARGIN = 30
 
 # COMMAND ----------
 
+
 class OpenSkyAccessToken:
     """
     OAuth2 client-credentials token, adapted from https://openskynetwork.github.io/opensky-api/rest.html#authentication
@@ -90,6 +91,7 @@ class OpenSkyAccessToken:
 
 
 # COMMAND ----------
+
 
 class OpenSkyDataSourceReader(DataSourceReader):
     def __init__(self, options: dict):
