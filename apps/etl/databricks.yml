@@ -34,8 +34,8 @@ variables:
     default: flight_state
   gold_schema:
     default: gold
-  latest_flight_state_table:
-    default: latest_flight_state
+  last_known_flight_state_table:
+    default: last_known_flight_state
   reference_schema:
     default: reference
   opensky_token_url:

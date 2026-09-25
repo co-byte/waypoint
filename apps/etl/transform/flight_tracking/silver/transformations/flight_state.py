@@ -1,6 +1,10 @@
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
+OPENSKY_ENRICHED_TABLE = spark.conf.get("opensky_enriched_table")
+FLIGHT_STATE_TABLE = spark.conf.get("flight_state_table")
+FLIGHT_STATE_CHANGES_VIEW = spark.conf.get("flight_state_changes_view")
+
 FAIL_EXPECTATIONS = {}
 DROP_EXPECTATIONS = {}
 WARN_EXPECTATIONS = {
@@ -13,14 +17,14 @@ WARN_EXPECTATIONS = {
 }
 
 
-@dp.temporary_view(name="flight_state_changes")
+@dp.temporary_view(name=FLIGHT_STATE_CHANGES_VIEW)
 @dp.expect_all_or_fail(FAIL_EXPECTATIONS)
 @dp.expect_all_or_drop(DROP_EXPECTATIONS)
 @dp.expect_all(WARN_EXPECTATIONS)
 def aircraft():
     df = (
         spark.readStream
-        .table("opensky_enriched")
+        .table(OPENSKY_ENRICHED_TABLE)
         .select(
             "icao24",
             "callsign",
@@ -49,11 +53,11 @@ def aircraft():
     return df
 
 
-dp.create_streaming_table("flight_state")
+dp.create_streaming_table(FLIGHT_STATE_TABLE)
 
 dp.create_auto_cdc_flow(
-    source="flight_state_changes",
-    target="flight_state",
+    source=FLIGHT_STATE_CHANGES_VIEW,
+    target=FLIGHT_STATE_TABLE,
     keys=["icao24", "time_position"],
     sequence_by="time_position",
 )

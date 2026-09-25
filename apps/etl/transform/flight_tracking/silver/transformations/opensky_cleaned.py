@@ -1,6 +1,10 @@
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
+BRONZE_SCHEMA = spark.conf.get("bronze_schema")
+OPENSKY_STATE_VECTORS_TABLE = spark.conf.get("opensky_state_vectors_table")
+OPENSKY_CLEANED_TABLE = spark.conf.get("opensky_cleaned_table")
+
 FAIL_EXPECTATIONS = {
     "valid_icao24": "icao24 IS NOT NULL AND length(icao24) = 6",
 }
@@ -31,7 +35,7 @@ DROP_EXPECTATIONS = {
 WARN_EXPECTATIONS = {}
 
 
-@dp.table(name="opensky_cleaned", private=True)
+@dp.table(name=OPENSKY_CLEANED_TABLE, private=True)
 @dp.expect_all_or_fail(FAIL_EXPECTATIONS)
 @dp.expect_all_or_drop(DROP_EXPECTATIONS)
 @dp.expect_all(WARN_EXPECTATIONS)
@@ -39,7 +43,7 @@ def opensky_cleaned():
     df = (
         spark
         .readStream
-        .table("waypoint_catalog.bronze.opensky_state_vectors")
+        .table(f"{BRONZE_SCHEMA}.{OPENSKY_STATE_VECTORS_TABLE}")
         .drop("sensors")  # Always null
         .withColumn("time_position", F.col("time_position").cast("timestamp"))
         .withColumn("last_contact", F.col("last_contact").cast("timestamp"))
