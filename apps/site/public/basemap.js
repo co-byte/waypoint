@@ -149,7 +149,7 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 export function addBasemap(viewer) {
 	Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(
 		([maplibregl, style]) => {
-			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3, () => viewer.scene.requestRender()));
+			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 6, () => viewer.scene.requestRender()));
 		},
 	);
 }
