@@ -40,7 +40,7 @@ def opensky_cleaned():
     df = (
         spark
         .readStream
-        .table("intro_to_data_engineering.bronze.opensky_states_raw")
+        .table("waypoint_catalog.bronze.opensky_state_vectors")
         .drop("sensors") # Always null
         .withColumn("time_position", F.col("time_position").cast("timestamp"))
         .withColumn("last_contact", F.col("last_contact").cast("timestamp"))

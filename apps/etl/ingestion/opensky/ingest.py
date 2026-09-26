@@ -163,4 +163,4 @@ df = (
 )
 df = df.withColumn("ingested_at", F.current_timestamp())
 
-df.write.format("delta").mode("append").saveAsTable("intro_to_data_engineering.bronze.opensky_states_raw")
+df.write.format("delta").mode("append").saveAsTable("waypoint_catalog.bronze.opensky_state_vectors")
