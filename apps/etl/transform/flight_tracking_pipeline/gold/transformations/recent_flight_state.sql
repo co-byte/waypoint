@@ -1,3 +1,4 @@
+-- A materialized view would trigger periodically, even when nobody visits the site + data would always be slightly outdated (since the last materialization run)
 CREATE VIEW gold.recent_flight_state
 AS
 SELECT * 
