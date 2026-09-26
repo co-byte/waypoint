@@ -3,7 +3,7 @@ from pyspark import pipelines as dp
 FAIL_EXPECTATIONS = {}
 DROP_EXPECTATIONS = {}
 WARN_EXPECTATIONS = {}
-# CDC can only compare entire rows -> what I want is actually to look column per column and never replace a value with null
+# TODO: CDC can only compare entire rows -> what I want is actually to look column per column and never replace a value with null
 
 
 @dp.temporary_view(name="aircraft_changes")
@@ -25,5 +25,3 @@ dp.create_auto_cdc_flow(
     keys=["icao24"],
     sequence_by="ingested_at",
 )
-
-
