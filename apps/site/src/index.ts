@@ -120,7 +120,7 @@ async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> 
 	return runQuery(
 		sql,
 		accessToken,
-		'SELECT longitude, latitude, geo_altitude, category, true_track, vertical_rate, velocity, icao24, callsign FROM intro_to_data_engineering.gold.latest_flight_state',
+		'SELECT longitude, latitude, geo_altitude, category, true_track, vertical_rate, velocity, icao24, callsign FROM waypoint_catalog.gold.recent_flight_state',
 	);
 }
 
