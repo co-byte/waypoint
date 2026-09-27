@@ -1,0 +1,28 @@
+resources:
+  pipelines:
+    flight_tracking_pipeline:
+      name: flight_tracking_pipeline
+      catalog: ${var.catalog}
+      schema: ${var.silver_schema}
+      serverless: true
+      configuration:
+        bronze_schema: ${var.bronze_schema}
+        silver_schema: ${var.silver_schema}
+        gold_schema: ${var.gold_schema}
+        reference_schema: ${var.reference_schema}
+        opensky_cleaned_table: ${var.opensky_cleaned_table}
+        opensky_enriched_table: ${var.opensky_enriched_table}
+        opensky_aircraft_category_table: ${var.opensky_aircraft_category_table}
+        opensky_position_source_table: ${var.opensky_position_source_table}
+        flight_state_changes_view: ${var.flight_state_changes_view}
+        aircraft_table: ${var.aircraft_table}
+        aircraft_changes_view: ${var.aircraft_changes_view}
+        flight_state_table: ${var.flight_state_table}
+        last_known_flight_state_table: ${var.last_known_flight_state_table}
+        opensky_state_vectors_table: ${var.opensky_state_vectors_table}
+      root_path: .
+      libraries:
+        - glob:
+            include: silver/transformations/**
+        - glob:
+            include: gold/transformations/**

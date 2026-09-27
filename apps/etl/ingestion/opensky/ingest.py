@@ -51,6 +51,7 @@ TOKEN_REFRESH_MARGIN = 30
 
 # COMMAND ----------
 
+
 class OpenSkyAccessToken:
     """
     OAuth2 client-credentials token, adapted from https://openskynetwork.github.io/opensky-api/rest.html#authentication
@@ -90,6 +91,7 @@ class OpenSkyAccessToken:
 
 
 # COMMAND ----------
+
 
 class OpenSkyDataSourceReader(DataSourceReader):
     def __init__(self, options: dict):
@@ -145,12 +147,17 @@ spark.dataSource.register(OpenSkyDataSource)
 
 # Non-secret config, set as Job parameters (surfaced here as widgets).
 dbutils.widgets.text("OPENSKY_TOKEN_URL", "")
+dbutils.widgets.text("CATALOG", "")
+dbutils.widgets.text("BRONZE_SCHEMA", "")
+dbutils.widgets.text("OPENSKY_STATE_VECTORS_TABLE", "")
 
 # Credentials, read from the "opensky" secret scope.
 CLIENT_ID = dbutils.secrets.get(scope="opensky", key="CLIENT_USER")
 CLIENT_SECRET = dbutils.secrets.get(scope="opensky", key="CLIENT_SECRET")
 
-
+CATALOG = dbutils.widgets.get("CATALOG")
+BRONZE_SCHEMA = dbutils.widgets.get("BRONZE_SCHEMA")
+OPENSKY_STATE_VECTORS_TABLE = dbutils.widgets.get("OPENSKY_STATE_VECTORS_TABLE")
 
 # COMMAND ----------
 
@@ -163,4 +170,4 @@ df = (
 )
 df = df.withColumn("ingested_at", F.current_timestamp())
 
-df.write.format("delta").mode("append").saveAsTable("waypoint_catalog.bronze.opensky_state_vectors")
+df.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{BRONZE_SCHEMA}.{OPENSKY_STATE_VECTORS_TABLE}")

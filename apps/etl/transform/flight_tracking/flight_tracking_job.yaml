@@ -1,0 +1,14 @@
+resources:
+  jobs:
+    flight_tracking_job:
+      name: flight_tracking_job
+      trigger:
+        pause_status: UNPAUSED
+        table_update:
+          table_names:
+            - ${var.catalog}.${var.bronze_schema}.${var.opensky_state_vectors_table}
+          min_time_between_triggers_seconds: 300
+      tasks:
+        - task_key: trigger_flight_tracking_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.flight_tracking_pipeline.id}

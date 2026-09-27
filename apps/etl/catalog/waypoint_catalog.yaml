@@ -1,0 +1,43 @@
+resources:
+  catalogs:
+    waypoint_catalog:
+      name: ${var.catalog}
+      storage_root: s3://dbstorage-prod-wvegq/uc/9c7a235b-42fd-4cc2-9933-5fdf352eb7ee/ae7485e1-7618-4443-bd93-66a4ee70f836
+      lifecycle:
+        prevent_destroy: true
+      grants:
+        - principal: ${var.website_principal}
+          privileges:
+            - USE_CATALOG
+
+  schemas:
+    bronze:
+      catalog_name: ${resources.catalogs.waypoint_catalog.name}
+      name: ${var.bronze_schema}
+      lifecycle:
+        prevent_destroy: true
+    silver:
+      catalog_name: ${resources.catalogs.waypoint_catalog.name}
+      name: ${var.silver_schema}
+      lifecycle:
+        prevent_destroy: true
+      grants:
+        - principal: ${var.website_principal}
+          privileges:
+            - USE_SCHEMA
+            - SELECT
+    gold:
+      catalog_name: ${resources.catalogs.waypoint_catalog.name}
+      name: ${var.gold_schema}
+      lifecycle:
+        prevent_destroy: true
+      grants:
+        - principal: ${var.website_principal}
+          privileges:
+            - USE_SCHEMA
+            - SELECT
+    reference:
+      catalog_name: ${resources.catalogs.waypoint_catalog.name}
+      name: ${var.reference_schema}
+      lifecycle:
+        prevent_destroy: true
