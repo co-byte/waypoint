@@ -1,7 +1,7 @@
 bundle:
   name: waypoint-etl
 
-include:
+includes:
   - catalog/*.yaml
   - ingestion/*/*.yaml
   - transform/*/*.yaml
