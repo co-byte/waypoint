@@ -9,6 +9,10 @@ resources:
         - principal: ${var.website_principal}
           privileges:
             - USE_CATALOG
+        - principal: ${var.github_actions_principal}
+          privileges:
+            - USE_CATALOG
+            - MANAGE
 
   schemas:
     bronze:
