@@ -18,6 +18,8 @@ export function createViewer() {
 		timeline: false,
 		// Cesium otherwise ignores the display's pixel ratio, so the globe renders at half resolution on high-DPI screens
 		useBrowserRecommendedResolution: false,
+		// A transparent canvas lets the gradient sky behind it show through
+		contextOptions: { webgl: { alpha: true } },
 	});
 	const { scene, camera } = viewer;
 	// The models are CC BY 3.0, which requires crediting the authors
@@ -48,7 +50,7 @@ export function createViewer() {
 	scene.skyBox.show = false;
 	scene.sun.show = false;
 	scene.moon.show = false;
-	scene.backgroundColor = Cesium.Color.fromCssColorString(backgroundColor);
+	scene.backgroundColor = Cesium.Color.TRANSPARENT;
 
 	// Right-drag zooms by default; here it tilts and rotates like the map's right-drag did
 	Object.assign(scene.screenSpaceCameraController, {

@@ -18,6 +18,7 @@ body {
 
 #viewer {
 	height: 100dvh;
+	background: radial-gradient(circle, var(--raised) 30%, #181818 60%, #0e0e0f);
 }
 
 #header {
