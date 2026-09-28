@@ -3,7 +3,7 @@ resources:
     opensky_data_ingestion_job:
       name: opensky_data_ingestion_job
       trigger:
-        pause_status: UNPAUSED
+        pause_status: PAUSED
         periodic:
           interval: 3
           unit: MINUTES
