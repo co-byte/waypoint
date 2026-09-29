@@ -18,7 +18,12 @@ body {
 
 #viewer {
 	height: 100dvh;
-	background: radial-gradient(circle, var(--raised) 30%, #181818 60%, #0e0e0f);
+	background: radial-gradient(
+		circle,
+		color-mix(in srgb, var(--accent) 25%, var(--raised)) 30%,
+		color-mix(in srgb, var(--accent) 10%, #181818) 60%,
+		#0e0e0f
+	);
 }
 
 #header {
