@@ -85,8 +85,6 @@ class OpenSkyAccessToken:
 
 
 class OpenSkyDataSourceStreamReader(SimpleDataSourceStreamReader):
-    """Each micro-batch is one live snapshot, which the API can't serve again, so a replayed batch is skipped."""
-
     def __init__(self, options: dict):
         self.token_url = options["token_url"]
         self.client_id = options["client_id"]
@@ -99,6 +97,7 @@ class OpenSkyDataSourceStreamReader(SimpleDataSourceStreamReader):
         return self.fetch_states(), {"fetched_at": int(time.time())}
 
     def readBetweenOffsets(self, start, end):
+        """Each micro-batch is one live snapshot, which the API can't serve again, so a replayed batch is skipped."""
         return iter([])
 
     def fetch_states(self):
@@ -144,9 +143,9 @@ OPENSKY_STATE_VECTORS_TABLE = f"{spark.conf.get('bronze_schema')}.{spark.conf.ge
 CLIENT_ID = dbutils.secrets.get(scope="opensky", key="CLIENT_USER")
 CLIENT_SECRET = dbutils.secrets.get(scope="opensky", key="CLIENT_SECRET")
 
-# The live API can't backfill, so a full refresh must never truncate this table.
 dp.create_streaming_table(
     name=OPENSKY_STATE_VECTORS_TABLE,
+    # The live API can't backfill, so a full refresh must never truncate this table.
     table_properties={"pipelines.reset.allowed": "false"},
 )
 
