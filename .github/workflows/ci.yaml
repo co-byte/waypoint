@@ -1,0 +1,66 @@
+name: CI
+permissions:
+  contents: read
+on:
+  pull_request:
+env:
+  DATABRICKS_AUTH_TYPE: oauth-m2m # OAuth seems to be the only type supported in free edition
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+  DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+    outputs:
+      etl: ${{ steps.filter.outputs.etl }}
+      monitoring: ${{ steps.filter.outputs.monitoring }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            etl:
+              - apps/etl/**
+              - .github/workflows/ci.yaml
+            monitoring:
+              - apps/monitoring/**
+              - .github/workflows/ci.yaml
+  validate-etl:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.etl == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BUNDLE_VAR_admin_user: ${{ secrets.DATABRICKS_ADMIN_USER }}
+    defaults:
+      run:
+        working-directory: apps/etl
+    steps:
+      - uses: actions/checkout@v6
+      - uses: databricks/setup-cli@v1.18.0
+      - name: Validate bundle
+        run: databricks bundle validate --strict
+  validate-monitoring:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/monitoring
+    steps:
+      - uses: actions/checkout@v6
+      - uses: databricks/setup-cli@v1.18.0
+      - name: Validate bundle
+        run: databricks bundle validate --strict
+  ci-passed:
+    needs: [detect-changes, validate-etl, validate-monitoring]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
