@@ -23,8 +23,8 @@ resources:
         opensky_state_vectors_table: ${var.opensky_state_vectors_table}
       root_path: .
       libraries:
-        - file:
-            path: ../../ingestion/opensky/ingest.py
+        - glob:
+            include: ../../ingestion/opensky/ingest.py
         - glob:
             include: silver/transformations/**
         - glob:
