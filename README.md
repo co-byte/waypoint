@@ -1,7 +1,7 @@
 # Waypoint
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-orange)
-[![Last deploy](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fco-byte%2Fwaypoint%2Factions%2Fworkflows%2Fdeploy-site.yaml%2Fruns%3Fstatus%3Dsuccess%26branch%3Dmain%26per_page%3D1&query=%24.workflow_runs%5B0%5D.updated_at&label=last%20deploy&cacheSeconds=300)](https://github.com/co-byte/waypoint/actions/workflows/deploy-site.yaml)
+[![Last deploy](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fco-byte%2Fwaypoint%2Factions%2Fworkflows%2Fcd.yaml%2Fruns%3Fstatus%3Dsuccess%26branch%3Dmain%26per_page%3D1&query=%24.workflow_runs%5B0%5D.updated_at&label=last%20deploy&cacheSeconds=300)](https://github.com/co-byte/waypoint/actions/workflows/cd.yaml)
 [![License: MIT](https://img.shields.io/github/license/co-byte/waypoint)](LICENSE)
 
 
