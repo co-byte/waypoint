@@ -17,3 +17,9 @@ repos:
         language: system
         files: ^apps/etl/(databricks\.yml|catalog/.*\.yaml|ingestion/.*\.yaml|transform/.*\.yaml)$
         pass_filenames: false
+      - id: databricks-monitoring-bundle-validate
+        name: databricks monitoring bundle is valid
+        entry: bash -c 'cd apps/monitoring && databricks bundle validate --strict'
+        language: system
+        files: ^apps/monitoring/(databricks\.yml|dashboards/.*)$
+        pass_filenames: false

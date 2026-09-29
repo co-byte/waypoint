@@ -1,0 +1,1431 @@
+{
+  "datasets": [
+    {
+      "name": "ds_daily_budget",
+      "displayName": "DBUs per day vs budget",
+      "queryLines": [
+        "WITH latest_billed AS (\n",
+        "  SELECT date_sub(to_date(min(last_end)), 1) AS day\n",
+        "  FROM (\n",
+        "    SELECT max(usage_end_time) AS last_end\n",
+        "    FROM system.billing.usage\n",
+        "    WHERE usage_unit = 'DBU' AND billing_origin_product IN ('JOBS', 'DLT')\n",
+        "      AND usage_date >= date_sub(current_date(), 7)\n",
+        "    GROUP BY billing_origin_product\n",
+        "  )\n",
+        "),\n",
+        "billed AS (\n",
+        "  SELECT u.usage_date AS day, u.billing_origin_product AS product, sum(u.usage_quantity) AS dbus\n",
+        "  FROM system.billing.usage u, latest_billed l\n",
+        "  WHERE u.usage_unit = 'DBU'\n",
+        "    AND u.usage_date BETWEEN least(:date_range.min, date_sub(l.day, 6)) AND l.day\n",
+        "  GROUP BY ALL\n",
+        "),\n",
+        "last_billed_week AS (\n",
+        "  SELECT b.*\n",
+        "  FROM billed b, latest_billed l\n",
+        "  WHERE b.day > date_sub(l.day, 7)\n",
+        "),\n",
+        "runtime_hours AS (\n",
+        "  SELECT to_date(period_start_time) AS day, 'DLT' AS product,\n",
+        "    sum(unix_timestamp(period_end_time) - unix_timestamp(period_start_time)) / 3600.0 AS hours\n",
+        "  FROM system.lakeflow.pipeline_update_timeline\n",
+        "  WHERE to_date(period_start_time) >= date_sub(current_date(), 10)\n",
+        "  GROUP BY ALL\n",
+        "  UNION ALL\n",
+        "  SELECT to_date(period_start_time), 'JOBS', sum(execution_duration_seconds) / 3600.0\n",
+        "  FROM system.lakeflow.job_task_run_timeline\n",
+        "  WHERE to_date(period_start_time) >= date_sub(current_date(), 10)\n",
+        "    AND result_state IS NOT NULL AND size(compute) > 0\n",
+        "  GROUP BY ALL\n",
+        "),\n",
+        "dbus_per_runtime_hour AS (\n",
+        "  SELECT w.product, try_divide(sum(w.dbus), sum(h.hours)) AS ratio\n",
+        "  FROM last_billed_week w\n",
+        "  JOIN runtime_hours h USING (day, product)\n",
+        "  GROUP BY w.product\n",
+        "),\n",
+        "other_products_per_day AS (\n",
+        "  SELECT coalesce(sum(dbus), 0) / 7 AS dbus\n",
+        "  FROM last_billed_week\n",
+        "  WHERE product NOT IN ('JOBS', 'DLT')\n",
+        "),\n",
+        "unbilled_days AS (\n",
+        "  SELECT explode(sequence(date_add(day, 1), current_date())) AS day\n",
+        "  FROM latest_billed\n",
+        "),\n",
+        "estimated AS (\n",
+        "  SELECT\n",
+        "    d.day,\n",
+        "    coalesce(sum(h.hours * r.ratio), 0)\n",
+        "      * CASE WHEN d.day = current_date()\n",
+        "          THEN 24 / ((unix_timestamp(current_timestamp()) - unix_timestamp(current_date())) / 3600.0)\n",
+        "          ELSE 1 END\n",
+        "      + first(o.dbus) AS dbus\n",
+        "  FROM unbilled_days d\n",
+        "  CROSS JOIN other_products_per_day o\n",
+        "  LEFT JOIN runtime_hours h ON h.day = d.day\n",
+        "  LEFT JOIN dbus_per_runtime_hour r ON r.product = h.product\n",
+        "  GROUP BY d.day\n",
+        "),\n",
+        "days AS (\n",
+        "  SELECT day, sum(dbus) AS billed_dbus, CAST(NULL AS DOUBLE) AS estimated_dbus\n",
+        "  FROM billed\n",
+        "  GROUP BY day\n",
+        "  UNION ALL\n",
+        "  SELECT day, NULL, dbus\n",
+        "  FROM estimated\n",
+        ")\n",
+        "SELECT\n",
+        "  d.day,\n",
+        "  d.billed_dbus,\n",
+        "  d.estimated_dbus,\n",
+        "  coalesce(d.billed_dbus, d.estimated_dbus) / :daily_dbu_budget AS budget_share,\n",
+        "  :daily_dbu_budget AS budget,\n",
+        "  d.day = l.day AS is_latest_billed_day,\n",
+        "  d.day = current_date() AS is_today\n",
+        "FROM days d, latest_billed l\n",
+        "WHERE d.day BETWEEN :date_range.min AND :date_range.max\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "date_range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        },
+        {
+          "displayName": "daily_dbu_budget",
+          "keyword": "daily_dbu_budget",
+          "dataType": "DECIMAL",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DECIMAL",
+              "values": [
+                {
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_task_concurrency",
+      "displayName": "Job task concurrency",
+      "queryLines": [
+        "WITH task_runs AS (\n",
+        "  SELECT\n",
+        "    run_id,\n",
+        "    max(period_end_time) AS ended,\n",
+        "    max(execution_duration_seconds) AS execution_seconds\n",
+        "  FROM system.lakeflow.job_task_run_timeline\n",
+        "  WHERE to_date(period_start_time) BETWEEN date_sub(:date_range.min, 1) AND :date_range.max\n",
+        "  GROUP BY run_id\n",
+        "  HAVING max(result_state) IS NOT NULL AND max(execution_duration_seconds) > 0\n",
+        "),\n",
+        "events AS (\n",
+        "  SELECT timestampadd(SECOND, -execution_seconds, ended) AS at, 1 AS delta FROM task_runs\n",
+        "  UNION ALL\n",
+        "  SELECT ended, -1 FROM task_runs\n",
+        "),\n",
+        "running AS (\n",
+        "  SELECT at, sum(delta) OVER (ORDER BY at, delta ROWS UNBOUNDED PRECEDING) AS tasks\n",
+        "  FROM events\n",
+        ")\n",
+        "SELECT\n",
+        "  to_date(at) AS day,\n",
+        "  max(tasks) AS peak_running,\n",
+        "  5 AS task_limit\n",
+        "FROM running\n",
+        "WHERE to_date(at) BETWEEN :date_range.min AND :date_range.max\n",
+        "GROUP BY to_date(at)\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "date_range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_warehouse_queue",
+      "displayName": "SQL warehouse queue",
+      "queryLines": [
+        "SELECT\n",
+        "  to_date(start_time) AS day,\n",
+        "  count(*) AS queries,\n",
+        "  percentile(waiting_at_capacity_duration_ms, 0.95) / 1000 AS p95_queue_seconds,\n",
+        "  max(waiting_at_capacity_duration_ms) / 1000 AS max_queue_seconds\n",
+        "FROM system.query.history\n",
+        "WHERE to_date(start_time) BETWEEN :date_range.min AND :date_range.max\n",
+        "GROUP BY to_date(start_time)\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "date_range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_pipelines",
+      "displayName": "Pipelines per type",
+      "queryLines": [
+        "WITH latest AS (\n",
+        "  SELECT pipeline_type, delete_time\n",
+        "  FROM system.lakeflow.pipelines\n",
+        "  QUALIFY row_number() OVER (PARTITION BY workspace_id, pipeline_id ORDER BY change_time DESC) = 1\n",
+        ")\n",
+        "SELECT\n",
+        "  pipeline_type,\n",
+        "  count(*) AS pipelines,\n",
+        "  1 AS pipeline_limit\n",
+        "FROM latest\n",
+        "WHERE delete_time IS NULL\n",
+        "GROUP BY pipeline_type\n"
+      ]
+    },
+    {
+      "name": "ds_usage",
+      "displayName": "DBU usage",
+      "queryLines": [
+        "WITH pipeline_names AS (\n",
+        "  SELECT workspace_id, pipeline_id, name\n",
+        "  FROM system.lakeflow.pipelines\n",
+        "  QUALIFY row_number() OVER (PARTITION BY workspace_id, pipeline_id ORDER BY change_time DESC) = 1\n",
+        ")\n",
+        "SELECT\n",
+        "  u.usage_date,\n",
+        "  u.billing_origin_product AS product,\n",
+        "  coalesce(u.usage_metadata.job_name, p.name, u.billing_origin_product) AS workload,\n",
+        "  u.usage_quantity AS dbus\n",
+        "FROM system.billing.usage u\n",
+        "LEFT JOIN pipeline_names p\n",
+        "  ON u.workspace_id = p.workspace_id AND u.usage_metadata.dlt_pipeline_id = p.pipeline_id\n",
+        "WHERE u.usage_unit = 'DBU'\n",
+        "  AND u.usage_date BETWEEN :date_range.min AND :date_range.max\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "date_range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_runs",
+      "displayName": "Job runs",
+      "queryLines": [
+        "WITH job_names AS (\n",
+        "  SELECT workspace_id, job_id, name\n",
+        "  FROM system.lakeflow.jobs\n",
+        "  QUALIFY row_number() OVER (PARTITION BY workspace_id, job_id ORDER BY change_time DESC) = 1\n",
+        "),\n",
+        "runs AS (\n",
+        "  SELECT\n",
+        "    workspace_id,\n",
+        "    job_id,\n",
+        "    run_id,\n",
+        "    min(period_start_time) AS run_start,\n",
+        "    max(period_end_time) AS run_end,\n",
+        "    max_by(result_state, period_end_time) AS result_state\n",
+        "  FROM system.lakeflow.job_run_timeline\n",
+        "  GROUP BY ALL\n",
+        ")\n",
+        "SELECT\n",
+        "  to_date(r.run_start) AS run_date,\n",
+        "  coalesce(j.name, r.job_id) AS job,\n",
+        "  coalesce(r.result_state, 'RUNNING') AS result_state,\n",
+        "  (unix_timestamp(r.run_end) - unix_timestamp(r.run_start)) / 60.0 AS duration_min,\n",
+        "  CASE WHEN r.result_state IN ('ERROR', 'FAILED', 'TIMED_OUT') THEN 1 ELSE 0 END AS failed\n",
+        "FROM runs r\n",
+        "LEFT JOIN job_names j USING (workspace_id, job_id)\n",
+        "WHERE to_date(r.run_start) BETWEEN :date_range.min AND :date_range.max\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "date_range",
+          "keyword": "date_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-30d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "limits",
+      "displayName": "Limits",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "limits-header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Free Edition limits\n",
+                "\n",
+                "Daily quota is unpublished; the DBU (Databricks Unit) budget is set on the Filters page."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-estimated-today",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_daily_budget",
+                  "fields": [
+                    {
+                      "name": "max(budget_share)",
+                      "expression": "MAX(`budget_share`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "filters": [
+                    {
+                      "expression": "`is_today`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max(budget_share)",
+                  "displayName": "Of budget",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Estimated today",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Extrapolated from today's runtime."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-latest-billed-day",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_daily_budget",
+                  "fields": [
+                    {
+                      "name": "max(budget_share)",
+                      "expression": "MAX(`budget_share`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "filters": [
+                    {
+                      "expression": "`is_latest_billed_day`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max(budget_share)",
+                  "displayName": "Of budget",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Latest billed day",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Billing lags about a day."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-peak-running-tasks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_task_concurrency",
+                  "fields": [
+                    {
+                      "name": "max(peak_running)",
+                      "expression": "MAX(`peak_running`)"
+                    },
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max(peak_running)",
+                  "displayName": "Peak",
+                  "formatTemplate": "{{ @formatted }} / 5"
+                },
+                "period": {
+                  "fieldName": "daily(day)"
+                }
+              },
+              "frame": {
+                "title": "Peak running job tasks",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-pipelines",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_pipelines",
+                  "fields": [
+                    {
+                      "name": "max(pipelines)",
+                      "expression": "MAX(`pipelines`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max(pipelines)",
+                  "displayName": "Pipelines",
+                  "formatTemplate": "{{ @formatted }} / 1"
+                }
+              },
+              "frame": {
+                "title": "Pipelines per type",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dbus-per-day-vs-budget",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_daily_budget",
+                  "fields": [
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    },
+                    {
+                      "name": "sum(billed_dbus)",
+                      "expression": "SUM(`billed_dbus`)"
+                    },
+                    {
+                      "name": "sum(estimated_dbus)",
+                      "expression": "SUM(`estimated_dbus`)"
+                    },
+                    {
+                      "name": "max(budget)",
+                      "expression": "MAX(`budget`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(day)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(billed_dbus)",
+                        "displayName": "Billed"
+                      },
+                      {
+                        "fieldName": "sum(estimated_dbus)",
+                        "displayName": "Estimated"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "max(budget)",
+                        "displayName": "Budget"
+                      }
+                    ]
+                  }
+                },
+                "color": {
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "Billed",
+                        "color": "#0072B2"
+                      },
+                      {
+                        "value": "Estimated",
+                        "color": "#A9C8E0"
+                      },
+                      {
+                        "value": "Budget",
+                        "color": "#E25759"
+                      }
+                    ]
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "frame": {
+                "title": "DBUs per day vs budget",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Unbilled days are estimated from runtime."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "job-task-concurrency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_task_concurrency",
+                  "fields": [
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    },
+                    {
+                      "name": "max(peak_running)",
+                      "expression": "MAX(`peak_running`)"
+                    },
+                    {
+                      "name": "max(task_limit)",
+                      "expression": "MAX(`task_limit`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(day)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(peak_running)",
+                      "displayName": "Running"
+                    },
+                    {
+                      "fieldName": "max(task_limit)",
+                      "displayName": "Limit"
+                    }
+                  ]
+                }
+              },
+              "frame": {
+                "title": "Peak running job tasks per day",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "warehouse-queue",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_warehouse_queue",
+                  "fields": [
+                    {
+                      "name": "daily(day)",
+                      "expression": "DATE_TRUNC(\"DAY\", `day`)"
+                    },
+                    {
+                      "name": "max(p95_queue_seconds)",
+                      "expression": "MAX(`p95_queue_seconds`)"
+                    },
+                    {
+                      "name": "max(max_queue_seconds)",
+                      "expression": "MAX(`max_queue_seconds`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(day)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "max(p95_queue_seconds)",
+                      "displayName": "p95 queue (s)"
+                    },
+                    {
+                      "fieldName": "max(max_queue_seconds)",
+                      "displayName": "Max queue (s)"
+                    }
+                  ]
+                }
+              },
+              "frame": {
+                "title": "SQL warehouse queue time",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "details",
+      "displayName": "Usage details",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "kpi-dbus",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "sum(dbus)",
+                      "expression": "SUM(`dbus`)"
+                    },
+                    {
+                      "name": "daily(usage_date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `usage_date`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(dbus)",
+                  "displayName": "DBUs",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "period": {
+                  "fieldName": "daily(usage_date)"
+                }
+              },
+              "frame": {
+                "title": "DBUs",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-runs",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "daily(run_date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `run_date`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Runs"
+                },
+                "period": {
+                  "fieldName": "daily(run_date)"
+                }
+              },
+              "frame": {
+                "title": "Job runs",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-failed-runs",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    },
+                    {
+                      "name": "daily(run_date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `run_date`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(failed)",
+                  "displayName": "Failed"
+                },
+                "period": {
+                  "fieldName": "daily(run_date)"
+                }
+              },
+              "frame": {
+                "title": "Failed job runs",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dbus-per-day-by-product",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "daily(usage_date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `usage_date`)"
+                    },
+                    {
+                      "name": "product",
+                      "expression": "`product`"
+                    },
+                    {
+                      "name": "sum(dbus)",
+                      "expression": "SUM(`dbus`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(usage_date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "fieldName": "sum(dbus)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "DBUs"
+                },
+                "color": {
+                  "fieldName": "product",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Product"
+                }
+              },
+              "frame": {
+                "title": "DBUs per day by product",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "dbus-by-workload",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "workload",
+                      "expression": "`workload`"
+                    },
+                    {
+                      "name": "sum(dbus)",
+                      "expression": "SUM(`dbus`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "sum(dbus)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "DBUs"
+                },
+                "y": {
+                  "fieldName": "workload",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Job / pipeline"
+                }
+              },
+              "frame": {
+                "title": "DBUs by job / pipeline",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "runs-by-job",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "job",
+                      "expression": "`job`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "sum(failed)",
+                      "expression": "SUM(`failed`)"
+                    },
+                    {
+                      "name": "avg(duration_min)",
+                      "expression": "AVG(`duration_min`)"
+                    },
+                    {
+                      "name": "max(duration_min)",
+                      "expression": "MAX(`duration_min`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "job",
+                    "displayName": "Job"
+                  },
+                  {
+                    "fieldName": "count(*)",
+                    "displayName": "Runs"
+                  },
+                  {
+                    "fieldName": "sum(failed)",
+                    "displayName": "Failed"
+                  },
+                  {
+                    "fieldName": "avg(duration_min)",
+                    "displayName": "Avg duration (min)",
+                    "format": {
+                      "type": "number",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "max(duration_min)",
+                    "displayName": "Max duration (min)",
+                    "format": {
+                      "type": "number",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Job runs by job",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 9,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "runs-per-day-by-state",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "daily(run_date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `run_date`)"
+                    },
+                    {
+                      "name": "result_state",
+                      "expression": "`result_state`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(run_date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Runs"
+                },
+                "color": {
+                  "fieldName": "result_state",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "SUCCEEDED",
+                        "color": "#59A89C"
+                      },
+                      {
+                        "value": "ERROR",
+                        "color": "#E25759"
+                      },
+                      {
+                        "value": "FAILED",
+                        "color": "#E25759"
+                      },
+                      {
+                        "value": "TIMED_OUT",
+                        "color": "#E25759"
+                      },
+                      {
+                        "value": "CANCELLED",
+                        "color": "#9AA5B1"
+                      },
+                      {
+                        "value": "SKIPPED",
+                        "color": "#C9CFD6"
+                      },
+                      {
+                        "value": "RUNNING",
+                        "color": "#4E79A7"
+                      }
+                    ]
+                  },
+                  "displayName": "Result"
+                }
+              },
+              "frame": {
+                "title": "Job runs per day by result",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "filters",
+      "displayName": "Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter-date",
+            "queries": [
+              {
+                "name": "ds_usage_date_range",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_runs_date_range",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_daily_budget_date_range",
+                "query": {
+                  "datasetName": "ds_daily_budget",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_task_concurrency_date_range",
+                "query": {
+                  "datasetName": "ds_task_concurrency",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_warehouse_queue_date_range",
+                "query": {
+                  "datasetName": "ds_warehouse_queue",
+                  "parameters": [
+                    {
+                      "name": "date_range",
+                      "keyword": "date_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "ds_usage_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "ds_runs_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "ds_daily_budget_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "ds_task_concurrency_date_range"
+                  },
+                  {
+                    "parameterName": "date_range",
+                    "queryName": "ds_warehouse_queue_date_range"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Date",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-daily-dbu-budget",
+            "queries": [
+              {
+                "name": "ds_daily_budget_daily_dbu_budget",
+                "query": {
+                  "datasetName": "ds_daily_budget",
+                  "parameters": [
+                    {
+                      "name": "daily_dbu_budget",
+                      "keyword": "daily_dbu_budget"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "daily_dbu_budget",
+                    "queryName": "ds_daily_budget_daily_dbu_budget"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Daily DBU budget",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FCFCFC",
+        "dark": "#1F272D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#11171C",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#CC79A7",
+        "#56B4E9",
+        "#D55E00",
+        "#F0E442"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
