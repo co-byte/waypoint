@@ -39,7 +39,7 @@ jobs:
         working-directory: apps/etl
     steps:
       - uses: actions/checkout@v6
-      - uses: databricks/setup-cli@main
+      - uses: databricks/setup-cli@v1.18.0
       - name: Validate bundle
         run: databricks bundle validate --strict
   validate-monitoring:
@@ -52,7 +52,7 @@ jobs:
         working-directory: apps/monitoring
     steps:
       - uses: actions/checkout@v6
-      - uses: databricks/setup-cli@main
+      - uses: databricks/setup-cli@v1.18.0
       - name: Validate bundle
         run: databricks bundle validate --strict
   validate:
