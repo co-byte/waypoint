@@ -1,13 +1,10 @@
-# Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-from pyspark.sql.datasource import DataSource, DataSourceReader, InputPartition
+from pyspark.sql.datasource import DataSource, SimpleDataSourceStreamReader
 from pyspark.sql.types import (
     ArrayType,
     BooleanType,
@@ -93,17 +90,24 @@ class OpenSkyAccessToken:
 # COMMAND ----------
 
 
-class OpenSkyDataSourceReader(DataSourceReader):
+class OpenSkyDataSourceStreamReader(SimpleDataSourceStreamReader):
+    """Each micro-batch is one live snapshot, so a replayed batch can only re-fetch the current one."""
+
     def __init__(self, options: dict):
         self.token_url = options["token_url"]
         self.client_id = options["client_id"]
         self.client_secret = options["client_secret"]
 
-    def partitions(self):
-        # A single snapshot pull covers the whole bounding box - no further split.
-        return [InputPartition(0)]
+    def initialOffset(self):
+        return {"fetched_at": 0}
 
-    def read(self, partition):
+    def read(self, start):
+        return self.fetch_states(), {"fetched_at": int(time.time())}
+
+    def readBetweenOffsets(self, start, end):
+        return self.fetch_states()
+
+    def fetch_states(self):
         access_token = OpenSkyAccessToken(self.token_url, self.client_id, self.client_secret)
         response = requests.get(
             "https://opensky-network.org/api/states/all",
@@ -113,14 +117,13 @@ class OpenSkyDataSourceReader(DataSourceReader):
         response.raise_for_status()
         states = response.json().get("states", [])
 
-        for state in states:
-            yield tuple(state[: len(SCHEMA)])
+        return [tuple(state[: len(SCHEMA)]) for state in states]
 
 
 class OpenSkyDataSource(DataSource):
     """
     A Databricks/Spark Data Source exposing OpenSky state vectors for a
-    bounding box as `spark.read.format("opensky")`.
+    bounding box as `spark.readStream.format("opensky")`.
 
     Options:
         token_url: OAuth2 token endpoint.
@@ -135,8 +138,8 @@ class OpenSkyDataSource(DataSource):
     def schema(self):
         return SCHEMA
 
-    def reader(self, schema):
-        return OpenSkyDataSourceReader(self.options)
+    def simpleStreamReader(self, schema):
+        return OpenSkyDataSourceStreamReader(self.options)
 
 
 # COMMAND ----------
@@ -145,29 +148,31 @@ spark.dataSource.register(OpenSkyDataSource)
 
 # COMMAND ----------
 
-# Non-secret config, set as Job parameters (surfaced here as widgets).
-dbutils.widgets.text("OPENSKY_TOKEN_URL", "")
-dbutils.widgets.text("CATALOG", "")
-dbutils.widgets.text("BRONZE_SCHEMA", "")
-dbutils.widgets.text("OPENSKY_STATE_VECTORS_TABLE", "")
+CATALOG = spark.conf.get("catalog")
+BRONZE_SCHEMA = spark.conf.get("bronze_schema")
+OPENSKY_STATE_VECTORS_TABLE = spark.conf.get("opensky_state_vectors_table")
 
 # Credentials, read from the "opensky" secret scope.
 CLIENT_ID = dbutils.secrets.get(scope="opensky", key="CLIENT_USER")
 CLIENT_SECRET = dbutils.secrets.get(scope="opensky", key="CLIENT_SECRET")
 
-CATALOG = dbutils.widgets.get("CATALOG")
-BRONZE_SCHEMA = dbutils.widgets.get("BRONZE_SCHEMA")
-OPENSKY_STATE_VECTORS_TABLE = dbutils.widgets.get("OPENSKY_STATE_VECTORS_TABLE")
-
 # COMMAND ----------
 
-df = (
-    spark.read.format("opensky")
-    .option("token_url", dbutils.widgets.get("OPENSKY_TOKEN_URL"))
-    .option("client_id", CLIENT_ID)
-    .option("client_secret", CLIENT_SECRET)
-    .load()
+# A sink keeps the bronze table outside the pipeline, so a full refresh can't truncate it.
+dp.create_sink(
+    name="opensky_state_vectors_sink",
+    format="delta",
+    options={"tableName": f"{CATALOG}.{BRONZE_SCHEMA}.{OPENSKY_STATE_VECTORS_TABLE}"},
 )
-df = df.withColumn("ingested_at", F.current_timestamp())
 
-df.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{BRONZE_SCHEMA}.{OPENSKY_STATE_VECTORS_TABLE}")
+
+@dp.append_flow(target="opensky_state_vectors_sink")
+def ingest_opensky_state_vectors():
+    return (
+        spark.readStream.format("opensky")
+        .option("token_url", spark.conf.get("opensky_token_url"))
+        .option("client_id", CLIENT_ID)
+        .option("client_secret", CLIENT_SECRET)
+        .load()
+        .withColumn("ingested_at", F.current_timestamp())
+    )
