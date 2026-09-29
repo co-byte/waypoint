@@ -5,7 +5,6 @@ const inspectLengthPixels = 150;
 const modelRangeMeters = 500_000;
 // Evaluated by Cesium every frame, so an aircraft is never drawn as both, however stale the loading below is
 const modelDisplayRange = new Cesium.DistanceDisplayCondition(0, modelRangeMeters);
-const markerDisplayRange = new Cesium.DistanceDisplayCondition(modelRangeMeters, Number.MAX_VALUE);
 // Models start loading a little before they become visible, so they are ready when the camera arrives
 const modelLoadRangeMeters = modelRangeMeters * 1.1;
 // Shared, so an aircraft does not change color when it switches between a marker and a model
@@ -13,7 +12,8 @@ const aircraftColor = Cesium.Color.fromCssColorString('#8a8a86');
 // The chevron spans 30 of the image's 38 units of height, the rest is a transparent margin that keeps its edges clear of the image's border
 const chevronWidthUnits = 32;
 const chevronHeightUnits = 38;
-const chevronPixelsPerUnit = minimumMarkerPixels / 30;
+const chevronLengthUnits = 30;
+const chevronPixelsPerUnit = minimumMarkerPixels / chevronLengthUnits;
 // White, so the color tint gives the exact color; the tip points up, the direction alignedAxis lines up with
 // Drawn on a canvas and passed as a PNG URL so all markers share one texture; high resolution, because zooming in scales a marker up tenfold
 function createChevronImage() {
@@ -60,15 +60,27 @@ export function createDisplay({ viewer, aircraft }) {
 
 	const isVisible = (entry) => !visible || visible.has(entry);
 
-	// Cesium keeps a billboard the same size on screen at any distance and only interpolates its scale between two distances,
-	// so the scale is set every frame to what perspective gives, like the models: a marker is 2/3 of its model, never below the minimum
-	function updateMarkerScales() {
+	const markerLengthMeters = (entry) => (entry.model.drawLengthMeters * 2) / 3;
+
+	// Like the models, a marker follows perspective at 2/3 of its model, never below the minimum: where the marker in meters shrinks below it,
+	// the one in pixels takes over; Cesium evaluates the ranges on the GPU every frame
+	function placeMarkerRanges(entry, focalLength) {
+		const start = entry.model.file === null || modelFailures.has(entry) ? 0 : modelRangeMeters;
+		const minimumSizeDistance = Math.max(start, (markerLengthMeters(entry) * focalLength) / minimumMarkerPixels);
+		const { inMeters, inPixels } = markerOf.get(entry);
+		inMeters.distanceDisplayCondition = new Cesium.DistanceDisplayCondition(start, minimumSizeDistance);
+		inPixels.distanceDisplayCondition = new Cesium.DistanceDisplayCondition(minimumSizeDistance, Number.MAX_VALUE);
+	}
+
+	// The switch distances depend on the canvas size, so they only change on a resize
+	let rangedFocalLength = null;
+	function updateMarkerRanges() {
 		const focalLength = focalLengthPixels(viewer);
-		for (const entry of aircraft) {
-			const distance = Cesium.Cartesian3.distance(camera.positionWC, entry.position);
-			const markerLengthPixels = ((entry.model.drawLengthMeters * 2) / 3) * (focalLength / distance);
-			markerOf.get(entry).scale = Math.max(1, markerLengthPixels / minimumMarkerPixels);
+		if (focalLength === rangedFocalLength) {
+			return;
 		}
+		rangedFocalLength = focalLength;
+		aircraft.forEach((entry) => placeMarkerRanges(entry, focalLength));
 	}
 
 	function showModel(entry) {
@@ -95,8 +107,7 @@ export function createDisplay({ viewer, aircraft }) {
 			(error) => {
 				console.error(`Model ${file}.glb failed to load for aircraft ${entry.icao24}`, error);
 				modelFailures.add(entry);
-				const marker = markerOf.get(entry);
-				marker.distanceDisplayCondition = undefined;
+				placeMarkerRanges(entry, focalLengthPixels(viewer));
 				scene.requestRender();
 				return null;
 			},
@@ -122,20 +133,24 @@ export function createDisplay({ viewer, aircraft }) {
 			new Cesium.Cartesian3(Math.sin(heading) * Math.cos(entry.pitch), Math.cos(heading) * Math.cos(entry.pitch), Math.sin(entry.pitch)),
 			new Cesium.Cartesian3(),
 		);
-		const marker = markers.add({
-			id: entry,
-			position: entry.position,
-			image: chevronImage,
-			height: chevronHeightUnits * chevronPixelsPerUnit,
-			width: chevronWidthUnits * chevronPixelsPerUnit,
-			alignedAxis: direction,
-			distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
-			color: aircraftColor,
+		const marker = { id: entry, position: entry.position, image: chevronImage, alignedAxis: direction, color: aircraftColor };
+		const unitsInMeters = markerLengthMeters(entry) / chevronLengthUnits;
+		markerOf.set(entry, {
+			inMeters: markers.add({
+				...marker,
+				sizeInMeters: true,
+				height: chevronHeightUnits * unitsInMeters,
+				width: chevronWidthUnits * unitsInMeters,
+			}),
+			inPixels: markers.add({
+				...marker,
+				height: chevronHeightUnits * chevronPixelsPerUnit,
+				width: chevronWidthUnits * chevronPixelsPerUnit,
+			}),
 		});
-		markerOf.set(entry, marker);
 	});
 
-	scene.preRender.addEventListener(updateMarkerScales);
+	scene.preRender.addEventListener(updateMarkerRanges);
 
 	// Nothing requests a frame when the image finishes loading, so the markers would stay invisible until the camera moves
 	const ready = new Promise((resolve) => {
@@ -171,7 +186,8 @@ export function createDisplay({ viewer, aircraft }) {
 	function show(matched) {
 		visible = matched;
 		for (const entry of aircraft) {
-			markerOf.get(entry).show = isVisible(entry);
+			const { inMeters, inPixels } = markerOf.get(entry);
+			inMeters.show = inPixels.show = isVisible(entry);
 			models.get(entry)?.then((model) => {
 				if (model) {
 					model.show = isVisible(entry);
