@@ -18,12 +18,10 @@ body {
 
 #viewer {
 	height: 100dvh;
-	background: radial-gradient(
-		circle,
-		color-mix(in srgb, var(--accent) 25%, var(--raised)) 30%,
-		color-mix(in srgb, var(--accent) 10%, #181818) 60%,
-		#0e0e0f
-	);
+	background:
+		radial-gradient(circle, transparent 35%, rgba(13, 15, 20, 0.85) 95%),
+		radial-gradient(rgba(200, 215, 240, 0.16) 1px, transparent 1.6px) 0 0 / 28px 28px,
+		radial-gradient(circle, #2b3342 25%, #1d222c 70%);
 }
 
 #header {
@@ -38,7 +36,7 @@ body {
 	gap: 10px;
 	height: 56px;
 	padding: 0 20px;
-	background: linear-gradient(to bottom, rgba(24, 24, 24, 0.85), rgba(24, 24, 24, 0));
+	background: linear-gradient(to bottom, rgba(16, 19, 26, 0.85), rgba(16, 19, 26, 0));
 	color: #f7f5f0;
 	font-family: var(--font);
 	pointer-events: none;
