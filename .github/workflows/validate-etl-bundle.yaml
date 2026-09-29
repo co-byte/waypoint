@@ -11,6 +11,7 @@ env:
   DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
   DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
   DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+  BUNDLE_VAR_admin_user: ${{ secrets.DATABRICKS_ADMIN_USER }}
 jobs:
   validate:
     runs-on: ubuntu-latest

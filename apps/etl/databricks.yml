@@ -45,6 +45,8 @@ variables:
     lookup:
       # Created manually via the UI; matched by display name
       service_principal: Cloudflare Worker
+  admin_user:
+    description: User name of the workspace admin - has full access to the catalog; set via `BUNDLE_VAR_admin_user`
   workspace_root_path:
     description: Workspace path bundle resources are deployed under
     default: /Workspace/Shared/waypoint/.bundle/${bundle.name}/${bundle.target}
