@@ -15,7 +15,7 @@ jobs:
       monitoring: ${{ steps.filter.outputs.monitoring }}
       site: ${{ steps.filter.outputs.site }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -44,7 +44,7 @@ jobs:
       run:
         working-directory: apps/etl
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: databricks/setup-cli@v1.18.0
       - name: Validate bundle
         run: databricks bundle validate --strict
@@ -64,7 +64,7 @@ jobs:
       run:
         working-directory: apps/monitoring
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: databricks/setup-cli@v1.18.0
       - name: Validate bundle
         run: databricks bundle validate --strict
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build & Deploy Worker
         uses: cloudflare/wrangler-action@v4
         with:
