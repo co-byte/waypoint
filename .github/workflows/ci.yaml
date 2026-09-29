@@ -9,7 +9,7 @@ env:
   DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
   DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
 jobs:
-  changes:
+  detect-changes:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -29,8 +29,8 @@ jobs:
               - apps/monitoring/**
               - .github/workflows/ci.yaml
   validate-etl:
-    needs: changes
-    if: needs.changes.outputs.etl == 'true'
+    needs: detect-changes
+    if: needs.detect-changes.outputs.etl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -44,8 +44,8 @@ jobs:
       - name: Validate bundle
         run: databricks bundle validate --strict
   validate-monitoring:
-    needs: changes
-    if: needs.changes.outputs.monitoring == 'true'
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -56,8 +56,8 @@ jobs:
       - uses: databricks/setup-cli@v1.18.0
       - name: Validate bundle
         run: databricks bundle validate --strict
-  validate:
-    needs: [changes, validate-etl, validate-monitoring]
+  ci-passed:
+    needs: [detect-changes, validate-etl, validate-monitoring]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2

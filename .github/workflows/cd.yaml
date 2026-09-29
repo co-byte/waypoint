@@ -7,7 +7,7 @@ on:
     branches:
       - main
 jobs:
-  changes:
+  detect-changes:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
@@ -30,8 +30,8 @@ jobs:
               - apps/site/**
               - .github/workflows/cd.yaml
   deploy-etl:
-    needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.etl == 'true'
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.etl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -51,8 +51,8 @@ jobs:
       - name: Deploy bundle
         run: databricks bundle deploy
   deploy-monitoring:
-    needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.monitoring == 'true'
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.monitoring == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -71,8 +71,8 @@ jobs:
       - name: Deploy bundle
         run: databricks bundle deploy
   deploy-site:
-    needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.site == 'true'
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
