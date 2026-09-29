@@ -77,7 +77,7 @@ jobs:
           workingDirectory: apps/site
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }} --message "PR #${{ github.event.pull_request.number }}"
+          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }} --message "PR ${{ github.event.pull_request.number }}"
       - name: Comment preview url
         env:
           GH_TOKEN: ${{ github.token }}
