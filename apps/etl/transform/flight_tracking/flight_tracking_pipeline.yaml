@@ -6,7 +6,6 @@ resources:
       schema: ${var.silver_schema}
       serverless: true
       configuration:
-        catalog: ${var.catalog}
         opensky_token_url: ${var.opensky_token_url}
         bronze_schema: ${var.bronze_schema}
         silver_schema: ${var.silver_schema}

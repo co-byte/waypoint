@@ -16,8 +16,6 @@ from pyspark.sql.types import (
     StructType,
 )
 
-# COMMAND ----------
-
 # Static schema - source: https://openskynetwork.github.io/opensky-api/rest.html#own-state-vectors
 SCHEMA = StructType(
     [
@@ -45,8 +43,6 @@ SCHEMA = StructType(
 # How many seconds before expiry to proactively refresh the token.
 TOKEN_REFRESH_MARGIN = 30
 
-
-# COMMAND ----------
 
 
 class OpenSkyAccessToken:
@@ -87,11 +83,9 @@ class OpenSkyAccessToken:
         return self._token
 
 
-# COMMAND ----------
-
 
 class OpenSkyDataSourceStreamReader(SimpleDataSourceStreamReader):
-    """Each micro-batch is one live snapshot, so a replayed batch can only re-fetch the current one."""
+    """Each micro-batch is one live snapshot, which the API can't serve again, so a replayed batch is skipped."""
 
     def __init__(self, options: dict):
         self.token_url = options["token_url"]
@@ -105,7 +99,7 @@ class OpenSkyDataSourceStreamReader(SimpleDataSourceStreamReader):
         return self.fetch_states(), {"fetched_at": int(time.time())}
 
     def readBetweenOffsets(self, start, end):
-        return self.fetch_states()
+        return iter([])
 
     def fetch_states(self):
         access_token = OpenSkyAccessToken(self.token_url, self.client_id, self.client_secret)
@@ -142,31 +136,22 @@ class OpenSkyDataSource(DataSource):
         return OpenSkyDataSourceStreamReader(self.options)
 
 
-# COMMAND ----------
-
 spark.dataSource.register(OpenSkyDataSource)
 
-# COMMAND ----------
-
-CATALOG = spark.conf.get("catalog")
-BRONZE_SCHEMA = spark.conf.get("bronze_schema")
-OPENSKY_STATE_VECTORS_TABLE = spark.conf.get("opensky_state_vectors_table")
+OPENSKY_STATE_VECTORS_TABLE = f"{spark.conf.get('bronze_schema')}.{spark.conf.get('opensky_state_vectors_table')}"
 
 # Credentials, read from the "opensky" secret scope.
 CLIENT_ID = dbutils.secrets.get(scope="opensky", key="CLIENT_USER")
 CLIENT_SECRET = dbutils.secrets.get(scope="opensky", key="CLIENT_SECRET")
 
-# COMMAND ----------
-
-# A sink keeps the bronze table outside the pipeline, so a full refresh can't truncate it.
-dp.create_sink(
-    name="opensky_state_vectors_sink",
-    format="delta",
-    options={"tableName": f"{CATALOG}.{BRONZE_SCHEMA}.{OPENSKY_STATE_VECTORS_TABLE}"},
+# The live API can't backfill, so a full refresh must never truncate this table.
+dp.create_streaming_table(
+    name=OPENSKY_STATE_VECTORS_TABLE,
+    table_properties={"pipelines.reset.allowed": "false"},
 )
 
 
-@dp.append_flow(target="opensky_state_vectors_sink")
+@dp.append_flow(target=OPENSKY_STATE_VECTORS_TABLE)
 def ingest_opensky_state_vectors():
     return (
         spark.readStream.format("opensky")
@@ -176,3 +161,8 @@ def ingest_opensky_state_vectors():
         .load()
         .withColumn("ingested_at", F.current_timestamp())
     )
+
+
+@dp.append_flow(target=OPENSKY_STATE_VECTORS_TABLE, once=True)
+def backfill_legacy_opensky_state_vectors():
+    return spark.read.table(f"{OPENSKY_STATE_VECTORS_TABLE}_legacy")
