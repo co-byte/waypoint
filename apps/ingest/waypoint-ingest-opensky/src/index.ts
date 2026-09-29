@@ -48,7 +48,12 @@ export default {
 			clientSecret: await env.OPENSKY_CLIENT_SECRET.get(),
 			requestTimeoutMs: env.OPENSKY_REQUEST_TIMEOUT_MS,
 		};
-		const accessToken = await fetchOpenSkyAccessToken(openSkyConfig);
-		console.log(await fetchStateVectors(openSkyConfig, accessToken));
+		try {
+			const accessToken = await fetchOpenSkyAccessToken(openSkyConfig);
+			console.log(await fetchStateVectors(openSkyConfig, accessToken));
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
 	},
 } satisfies ExportedHandler<Env>;
