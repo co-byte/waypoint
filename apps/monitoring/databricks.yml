@@ -1,0 +1,31 @@
+bundle:
+  name: waypoint-monitoring
+
+include:
+  - dashboards/*.yaml
+
+variables:
+  warehouse_id:
+    description: SQL warehouse the dashboards run on
+    lookup:
+      warehouse: Serverless Starter Warehouse
+  workspace_root_path:
+    description: Workspace path bundle resources are deployed under
+    default: /Workspace/Shared/waypoint/.bundle/${bundle.name}/${bundle.target}
+  github_actions_principal:
+    description: Application ID of the GitHub Actions deploy service principal
+    lookup:
+      # Created manually via the UI; matched by display name
+      service_principal: Waypoint - GitHub Workflow
+
+targets:
+  prod:
+    default: true
+    mode: production
+    workspace:
+      root_path: ${var.workspace_root_path}
+    run_as:
+      service_principal_name: ${var.github_actions_principal}
+    permissions:
+      - level: CAN_MANAGE
+        group_name: users

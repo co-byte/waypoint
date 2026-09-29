@@ -1,0 +1,8 @@
+resources:
+  dashboards:
+    compute_usage_dashboard:
+      display_name: Compute usage
+      file_path: ./compute_usage.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      # Queries run as the viewer: system tables are only readable by admins
+      embed_credentials: false
