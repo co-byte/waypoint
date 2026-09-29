@@ -11,7 +11,7 @@
 		"enabled": true,
 	},
 	"triggers": {
-		"crons": ["* * * * *"],
+		"crons": ["*/3 * * * *"],
 	},
 	"upload_source_maps": true,
 	/**
@@ -31,7 +31,30 @@
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
+	"vars": {
+		"OPENSKY_TOKEN_URL": "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token",
+		"OPENSKY_STATES_URL": "https://opensky-network.org/api/states/all?extended=1",
+		"OPENSKY_REQUEST_TIMEOUT_MS": 30000,
+	},
+	/**
+	 * Secrets Store (account-level secrets)
+	 * https://developers.cloudflare.com/secrets-store/integrations/workers/
+	 *
+	 * `wrangler dev` cannot read these. Create a local copy of each secret with:
+	 * npx wrangler secrets-store secret create <store_id> --name <secret_name> --scopes workers
+	 */
+	"secrets_store_secrets": [
+		{
+			"binding": "OPENSKY_CLIENT_ID",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "OPENSKY_CLIENT_ID",
+		},
+		{
+			"binding": "OPENSKY_CLIENT_SECRET",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "OPENSKY_CLIENT_SECRET",
+		},
+	],
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/

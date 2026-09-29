@@ -1,40 +1,54 @@
-/**
- * Welcome to Cloudflare Workers!
- *
- * This is a template for a Scheduled Worker: a Worker that can run on a
- * configurable interval:
- * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Run `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"` to see your Worker in action
- * - Run `npm run deploy` to publish your Worker
- *
- * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+async function assertOk(response: Response, action: string): Promise<void> {
+	if (!response.ok) {
+		throw new Error(`${action} failed: ${response.status} ${await response.text()}`);
+	}
+}
+
+interface OpenSkyConfig {
+	tokenUrl: string;
+	statesUrl: string;
+	clientId: string;
+	clientSecret: string;
+	requestTimeoutMs: number;
+}
+
+async function fetchOpenSkyAccessToken(config: OpenSkyConfig): Promise<string> {
+	const response = await fetch(config.tokenUrl, {
+		method: 'POST',
+		body: new URLSearchParams({
+			grant_type: 'client_credentials',
+			client_id: config.clientId,
+			client_secret: config.clientSecret,
+		}),
+		signal: AbortSignal.timeout(config.requestTimeoutMs),
+	});
+	await assertOk(response, 'OpenSky token request');
+	const { access_token } = await response.json<{ access_token?: unknown }>();
+	if (typeof access_token !== 'string') {
+		throw new Error('OpenSky token response missing access_token');
+	}
+	return access_token;
+}
+
+async function fetchStateVectors(config: OpenSkyConfig, accessToken: string): Promise<string> {
+	const response = await fetch(config.statesUrl, {
+		headers: { Authorization: `Bearer ${accessToken}` },
+		signal: AbortSignal.timeout(config.requestTimeoutMs),
+	});
+	await assertOk(response, 'OpenSky states request');
+	return response.text();
+}
 
 export default {
-	async fetch(req) {
-		const url = new URL(req.url);
-		url.pathname = '/__scheduled';
-		url.searchParams.append('cron', '* * * * *');
-		return new Response(`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`);
-	},
-
-	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
-	// [[triggers]] configuration.
-	async scheduled(event, env, ctx): Promise<void> {
-		// A Cron Trigger can make requests to other endpoints on the Internet,
-		// publish to a Queue, query a D1 Database, and much more.
-		//
-		// We'll keep it simple and make an API call to a Cloudflare API:
-		let resp = await fetch('https://api.cloudflare.com/client/v4/ips');
-		let wasSuccessful = resp.ok ? 'success' : 'fail';
-
-		// You could store this result in KV, write to a D1 Database, or publish to a Queue.
-		// In this template, we'll just log the result:
-		console.log(`trigger fired at ${event.cron}: ${wasSuccessful}`);
+	async scheduled(_controller, env): Promise<void> {
+		const openSkyConfig: OpenSkyConfig = {
+			tokenUrl: env.OPENSKY_TOKEN_URL,
+			statesUrl: env.OPENSKY_STATES_URL,
+			clientId: await env.OPENSKY_CLIENT_ID.get(),
+			clientSecret: await env.OPENSKY_CLIENT_SECRET.get(),
+			requestTimeoutMs: env.OPENSKY_REQUEST_TIMEOUT_MS,
+		};
+		const accessToken = await fetchOpenSkyAccessToken(openSkyConfig);
+		console.log(await fetchStateVectors(openSkyConfig, accessToken));
 	},
 } satisfies ExportedHandler<Env>;
