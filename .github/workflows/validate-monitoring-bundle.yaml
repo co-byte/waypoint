@@ -1,24 +1,23 @@
-name: Validate Waypoint ETL bundle
+name: Validate Waypoint monitoring bundle
 permissions:
   contents: read
 on:
   pull_request:
     paths:
-      - apps/etl/**
-      - .github/workflows/validate-etl-bundle.yaml
+      - apps/monitoring/**
+      - .github/workflows/validate-monitoring-bundle.yaml
 env:
   DATABRICKS_AUTH_TYPE: oauth-m2m
   DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
   DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
   DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-  BUNDLE_VAR_admin_user: ${{ secrets.DATABRICKS_ADMIN_USER }}
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: apps/etl
+        working-directory: apps/monitoring
     steps:
       - uses: actions/checkout@v6
       - uses: databricks/setup-cli@main

@@ -13,7 +13,13 @@ repos:
         pass_filenames: false
       - id: databricks-bundle-validate
         name: databricks bundle is valid
-        entry: bash -c 'cd apps/etl && databricks bundle validate --strict'
+        entry: bash -c 'cd apps/etl && databricks bundle validate --strict --var admin_user="${BUNDLE_VAR_admin_user:-placeholder}"'
         language: system
         files: ^apps/etl/(databricks\.yml|catalog/.*\.yaml|ingestion/.*\.yaml|transform/.*\.yaml)$
+        pass_filenames: false
+      - id: databricks-monitoring-bundle-validate
+        name: databricks monitoring bundle is valid
+        entry: bash -c 'cd apps/monitoring && databricks bundle validate --strict'
+        language: system
+        files: ^apps/monitoring/(databricks\.yml|dashboards/.*)$
         pass_filenames: false
