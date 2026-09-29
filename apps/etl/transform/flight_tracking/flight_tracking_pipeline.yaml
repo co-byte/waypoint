@@ -6,6 +6,7 @@ resources:
       schema: ${var.silver_schema}
       serverless: true
       configuration:
+        opensky_token_url: ${var.opensky_token_url}
         bronze_schema: ${var.bronze_schema}
         silver_schema: ${var.silver_schema}
         gold_schema: ${var.gold_schema}
@@ -22,6 +23,8 @@ resources:
         opensky_state_vectors_table: ${var.opensky_state_vectors_table}
       root_path: .
       libraries:
+        - file:
+            path: ../../ingestion/opensky/ingest.py
         - glob:
             include: silver/transformations/**
         - glob:

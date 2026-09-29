@@ -8,20 +8,6 @@ resources:
           interval: 5
           unit: MINUTES
       tasks:
-        - task_key: ingest_opensky_data
-          notebook_task:
-            notebook_path: ../../ingestion/opensky/ingest.py
         - task_key: trigger_flight_tracking_pipeline
-          depends_on:
-            - task_key: ingest_opensky_data
           pipeline_task:
             pipeline_id: ${resources.pipelines.flight_tracking_pipeline.id}
-      parameters:
-        - name: OPENSKY_TOKEN_URL
-          default: ${var.opensky_token_url}
-        - name: CATALOG
-          default: ${var.catalog}
-        - name: BRONZE_SCHEMA
-          default: ${var.bronze_schema}
-        - name: OPENSKY_STATE_VECTORS_TABLE
-          default: ${var.opensky_state_vectors_table}
