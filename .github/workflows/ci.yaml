@@ -11,6 +11,7 @@ env:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       pull-requests: read
     outputs:
@@ -31,7 +32,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.etl == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     env:
       BUNDLE_VAR_admin_user: ${{ secrets.DATABRICKS_ADMIN_USER }}
     defaults:
@@ -46,7 +47,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.monitoring == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: apps/monitoring
@@ -59,6 +60,7 @@ jobs:
     needs: [changes, validate-etl, validate-monitoring]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1

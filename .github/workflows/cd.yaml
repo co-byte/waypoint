@@ -9,6 +9,7 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     outputs:
       etl: ${{ steps.filter.outputs.etl }}
       monitoring: ${{ steps.filter.outputs.monitoring }}
@@ -32,7 +33,7 @@ jobs:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.etl == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     env:
       DATABRICKS_AUTH_TYPE: oauth-m2m # OAuth seems to be the only type supported in free edition
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
@@ -53,7 +54,7 @@ jobs:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.monitoring == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     env:
       DATABRICKS_AUTH_TYPE: oauth-m2m # OAuth seems to be the only type supported in free edition
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
@@ -73,7 +74,7 @@ jobs:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.site == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - name: Build & Deploy Worker
