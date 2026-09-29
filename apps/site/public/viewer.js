@@ -45,6 +45,7 @@ export function createViewer() {
 	scene.globe.baseColor = Cesium.Color.fromCssColorString(backgroundColor);
 	// Performance: the scene is static most of the time, so frames are only drawn when the camera moves or a tile loads; changes made from code need scene.requestRender()
 	scene.requestRenderMode = true;
+	scene.globe.enableLighting = true;
 	scene.globe.showGroundAtmosphere = false;
 	scene.skyAtmosphere.show = false;
 	scene.skyBox.show = false;
