@@ -160,8 +160,3 @@ def ingest_opensky_state_vectors():
         .load()
         .withColumn("ingested_at", F.current_timestamp())
     )
-
-
-@dp.append_flow(target=OPENSKY_STATE_VECTORS_TABLE, once=True)
-def backfill_legacy_opensky_state_vectors():
-    return spark.read.table(f"{OPENSKY_STATE_VECTORS_TABLE}_legacy")
