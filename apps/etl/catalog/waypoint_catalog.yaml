@@ -6,6 +6,9 @@ resources:
       lifecycle:
         prevent_destroy: true
       grants:
+        - principal: ${var.admin_user}
+          privileges:
+            - ALL_PRIVILEGES
         - principal: ${var.website_principal}
           privileges:
             - USE_CATALOG
