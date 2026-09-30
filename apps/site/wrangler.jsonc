@@ -23,15 +23,6 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	"vars": {
-		"FLIGHT_CACHE_TTL_SECONDS": 300
-	},
-	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
 	 */
@@ -40,41 +31,7 @@
 		"not_found_handling": "single-page-application"
 	},
 	/**
-	 * Secrets Store (account-level secrets)
-	 * https://developers.cloudflare.com/secrets-store/integrations/workers/
-	 *
-	 * `wrangler dev` cannot read these. Create a local copy of each secret with:
-	 * npx wrangler secrets-store secret create <store_id> --name <secret_name> --scopes workers
-	 */
-	"secrets_store_secrets": [
-		{
-			"binding": "DATABRICKS_ACCOUNT_ID",
-			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
-			"secret_name": "DATABRICKS_ACCOUNT_ID"
-		},
-		{
-			"binding": "DATABRICKS_DEPLOYMENT_NAME",
-			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
-			"secret_name": "DATABRICKS_DEPLOYMENT_NAME"
-		},
-		{
-			"binding": "DATABRICKS_WAREHOUSE_ID",
-			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
-			"secret_name": "DATABRICKS_WAREHOUSE_ID"
-		},
-		{
-			"binding": "DATABRICKS_CLIENT_ID",
-			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
-			"secret_name": "DATABRICKS_CLIENT_ID"
-		},
-		{
-			"binding": "DATABRICKS_CLIENT_SECRET",
-			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
-			"secret_name": "DATABRICKS_CLIENT_SECRET"
-		}
-	],
-	/**
-	 * KV (caches the latest flight state, so page loads do not each query the warehouse)
+	 * KV (holds the latest flight state, written by the flight tracking pipeline)
 	 * https://developers.cloudflare.com/kv/get-started/
 	 */
 	"kv_namespaces": [

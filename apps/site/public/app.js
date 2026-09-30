@@ -14,7 +14,7 @@ const flight = createFlight(viewer);
 const selection = createSelection({ viewer, flight, details: createDetails() });
 setupControls({ viewer, flight, selection });
 
-// Well below the worker's cache lifetime, so new data shows up soon after the cache takes it in
+// The pipeline pushes new data every few minutes at no fixed time, so polling every minute shows it soon after it lands
 const refreshIntervalMs = 60_000;
 
 // A hidden tab needs no updates, so it catches up once it is shown again

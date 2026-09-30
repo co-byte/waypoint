@@ -11,7 +11,7 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 
 ## How it works
 
-1. A Cloudflare Worker (`apps/site/`) gets the latest flight data from Databricks.
+1. After each run, the Databricks pipeline (`apps/etl/`) writes the latest flight data to Cloudflare KV, where a Cloudflare Worker (`apps/site/`) serves it.
 2. The page uses [CesiumJS](https://cesium.com/platform/cesiumjs/) to show a 3D globe with each aircraft at its position and altitude.
 
 ## Roadmap

@@ -38,6 +38,9 @@ variables:
     default: last_known_flight_state
   reference_schema:
     default: reference
+  flight_cache_kv_namespace_id:
+    description: Cloudflare KV namespace the site's Worker reads the latest flight state from
+    default: 1e82c18c98e4455392a6deb44f400014
   opensky_token_url:
     default: https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token
   website_principal:
