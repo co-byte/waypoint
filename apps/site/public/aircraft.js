@@ -1,11 +1,10 @@
 import { fetchJson } from './common.js';
 
 export async function fetchAircraft() {
-	const data = await fetchJson('/api/latest-flight-state', 'Latest flight state');
-	const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
+	const { columns, rows } = await fetchJson('/api/latest-flight-state', 'Latest flight state');
 	// Number(null) is 0, which would turn a missing velocity into a vertical climb
 	const optionalNumber = (value) => (value == null ? null : Number(value));
-	const positioned = (data.result?.data_array ?? [])
+	const positioned = rows
 		.map((values) => Object.fromEntries(values.map((value, index) => [columns[index], value])))
 		.filter((row) => row.longitude != null && row.latitude != null && row.geo_altitude != null);
 	// A category without a model means the data pipeline delivered something unexpected, so the aircraft is left out instead of guessed at
