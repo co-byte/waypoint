@@ -149,7 +149,11 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 export function addBasemap(viewer) {
 	Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(
 		([maplibregl, style]) => {
-			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3, () => viewer.scene.requestRender()));
+			// All pooled maps share one worker pool, which MapLibre caps at 3 workers by default
+			maplibregl.setWorkerCount(Math.max(Math.floor(navigator.hardwareConcurrency / 2), 1));
+			// Each pooled map holds a WebGL context and tile cache next to Cesium's; Chrome loses the least recently used context past 16, and phones run short on memory well before that
+			const poolSize = matchMedia('(pointer: coarse)').matches ? 3 : 12;
+			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, poolSize, () => viewer.scene.requestRender()));
 		},
 	);
 }
