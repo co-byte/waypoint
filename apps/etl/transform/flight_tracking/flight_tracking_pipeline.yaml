@@ -21,6 +21,7 @@ resources:
         flight_state_table: ${var.flight_state_table}
         last_known_flight_state_table: ${var.last_known_flight_state_table}
         opensky_state_vectors_table: ${var.opensky_state_vectors_table}
+        flight_cache_kv_namespace_id: ${var.flight_cache_kv_namespace_id}
       root_path: .
       libraries:
         - glob:
@@ -29,3 +30,5 @@ resources:
             include: silver/transformations/**
         - glob:
             include: gold/transformations/**
+        - glob:
+            include: ../../serving/cloudflare/push_flight_state.py
