@@ -14,15 +14,26 @@ const flight = createFlight(viewer);
 const selection = createSelection({ viewer, flight, details: createDetails() });
 setupControls({ viewer, flight, selection });
 
-const refreshIntervalMs = 5 * 60_000;
+// Well below the worker's cache lifetime, so new data shows up soon after the cache takes it in
+const refreshIntervalMs = 60_000;
 
-// A hidden tab would keep the warehouse running for nothing
+// A hidden tab needs no updates, so it catches up once it is shown again
 function keepRefreshing(onAircraft) {
+	let fetchedAt = Date.now();
+	const refresh = () => {
+		fetchedAt = Date.now();
+		fetchAircraft().then(onAircraft, console.error);
+	};
 	setInterval(() => {
 		if (!document.hidden) {
-			fetchAircraft().then(onAircraft, console.error);
+			refresh();
 		}
 	}, refreshIntervalMs);
+	document.addEventListener('visibilitychange', () => {
+		if (!document.hidden && Date.now() - fetchedAt >= refreshIntervalMs) {
+			refresh();
+		}
+	});
 }
 
 const loading = document.getElementById('loading');
@@ -46,6 +57,7 @@ fetchAircraft().then(
 		keepRefreshing((fresh) => {
 			display.update(mergeAircraft(display.aircraft(), fresh));
 			search.filter();
+			selection.refresh();
 		});
 	},
 	(error) => {

@@ -8,7 +8,7 @@ export function createDetails() {
 	const summary = document.getElementById('summary');
 	const header = document.getElementById('header');
 
-	function show(aircraft, { isCurrent, onSummary }) {
+	function update(aircraft) {
 		const value = (number, scale = 1) => (number == null ? null : formatNumber(Math.round(number * scale)));
 		const rate = aircraft.verticalRate == null ? null : Math.round(aircraft.verticalRate);
 		const arrow = rate > 0 ? '▲ ' : rate < 0 ? '▼ ' : '';
@@ -37,6 +37,11 @@ export function createDetails() {
 			state.append(cell);
 		}
 		groups.replaceChildren(identity, state);
+	}
+
+	// The summary is only fetched here, since it describes the aircraft rather than its state
+	function show(aircraft, { isCurrent, onSummary }) {
+		update(aircraft);
 		summary.hidden = true;
 		summary.replaceChildren();
 		fetchJson(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`, 'Aircraft summary')
@@ -68,5 +73,5 @@ export function createDetails() {
 		details.style.transform = `translate(${x}px, ${y}px)`;
 	}
 
-	return { show, place };
+	return { show, update, place };
 }

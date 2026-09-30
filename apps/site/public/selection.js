@@ -55,14 +55,9 @@ export function createSelection({ viewer, flight, details }) {
 		flight.unlock();
 	}
 
-	function select(aircraft) {
-		const { drawLengthMeters } = aircraft.model;
-		const range = inspectRange(viewer, aircraft);
-		// A camera locked to another aircraft would fly relative to that frame
-		release();
-		selected = aircraft;
-		// Starting below the center keeps the line from cutting through the model's underside; the drop never goes below the ground
-		const drop = Math.min(drawLengthMeters * 0.05, Math.max(aircraft.altitude, 0));
+	// Starting below the center keeps the line from cutting through the model's underside; the drop never goes below the ground
+	function placeGroundLine(aircraft) {
+		const drop = Math.min(aircraft.model.drawLengthMeters * 0.05, Math.max(aircraft.altitude, 0));
 		const { longitude, latitude } = aircraft;
 		groundLine.positions = Cesium.Cartesian3.fromDegreesArrayHeights([
 			longitude,
@@ -72,10 +67,29 @@ export function createSelection({ viewer, flight, details }) {
 			latitude,
 			0,
 		]);
+	}
+
+	function select(aircraft) {
+		const range = inspectRange(viewer, aircraft);
+		// A camera locked to another aircraft would fly relative to that frame
+		release();
+		selected = aircraft;
+		placeGroundLine(aircraft);
 		groundLine.show = true;
 		details.show(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
 		// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
 		flight.flyAround(aircraft, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
+	}
+
+	// A refresh updates the selected aircraft in place, so everything tied to it has to follow
+	function refresh() {
+		if (!selected) {
+			return;
+		}
+		placeGroundLine(selected);
+		details.update(selected);
+		flight.follow(selected);
+		scene.requestRender();
 	}
 
 	new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
@@ -93,5 +107,5 @@ export function createSelection({ viewer, flight, details }) {
 		}
 	});
 
-	return { current: () => selected, select, release };
+	return { current: () => selected, select, refresh, release };
 }

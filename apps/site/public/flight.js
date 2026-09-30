@@ -35,11 +35,19 @@ export function createFlight(viewer) {
 		});
 	}
 
+	// A camera still flying picks up the new position when it locks on arrival
+	function follow(aircraft) {
+		if (!Cesium.Matrix4.equals(camera.transform, Cesium.Matrix4.IDENTITY)) {
+			const range = Cesium.Cartesian3.magnitude(camera.position);
+			camera.lookAt(aircraft.position, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
+		}
+	}
+
 	function unlock() {
 		// A fly-to still in progress would otherwise lock the camera to the aircraft when it lands
 		camera.cancelFlight();
 		camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
 	}
 
-	return { flightDuration, flyAround, unlock };
+	return { flightDuration, flyAround, follow, unlock };
 }
