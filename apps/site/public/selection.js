@@ -1,12 +1,11 @@
 import { accentColor } from './common.js';
-import { placeDetails, showDetails } from './details.js';
 import { inspectRange } from './display.js';
 
 // Keeps the box visible when the aircraft is only a marker
 const minimumBoxPixels = 24;
 const boxPaddingPixels = 6;
 
-export function createSelection({ viewer, flight }) {
+export function createSelection({ viewer, flight, details }) {
 	const { scene, camera } = viewer;
 	const selectionBox = document.getElementById('selection-box');
 	let selected = null;
@@ -39,7 +38,7 @@ export function createSelection({ viewer, flight }) {
 	scene.postRender.addEventListener(() => {
 		const box = selected && projectBox(selected);
 		selectionBox.hidden = !box;
-		placeDetails(box);
+		details.place(box);
 		if (!box) {
 			return;
 		}
@@ -74,7 +73,7 @@ export function createSelection({ viewer, flight }) {
 			0,
 		]);
 		groundLine.show = true;
-		showDetails(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
+		details.show(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
 		// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
 		flight.flyAround(aircraft, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
 	}

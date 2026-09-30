@@ -1,6 +1,7 @@
-import { fetchAircraft } from './aircraft.js';
+import { fetchAircraft, mergeAircraft } from './aircraft.js';
 import { addBasemap } from './basemap.js';
 import { setupControls } from './controls.js';
+import { createDetails } from './details.js';
 import { createDisplay } from './display.js';
 import { createFlight } from './flight.js';
 import { createSelection } from './selection.js';
@@ -10,8 +11,19 @@ import { createViewer } from './viewer.js';
 const viewer = createViewer();
 addBasemap(viewer);
 const flight = createFlight(viewer);
-const selection = createSelection({ viewer, flight });
+const selection = createSelection({ viewer, flight, details: createDetails() });
 setupControls({ viewer, flight, selection });
+
+const refreshIntervalMs = 5 * 60_000;
+
+// A hidden tab would keep the warehouse running for nothing
+function keepRefreshing(onAircraft) {
+	setInterval(() => {
+		if (!document.hidden) {
+			fetchAircraft().then(onAircraft, console.error);
+		}
+	}, refreshIntervalMs);
+}
 
 const loading = document.getElementById('loading');
 fetchAircraft().then(
@@ -20,8 +32,8 @@ fetchAircraft().then(
 		display.ready.then(() => {
 			loading.hidden = true;
 		});
-		setupSearch({
-			aircraft,
+		const search = setupSearch({
+			aircraft: display.aircraft,
 			camera: viewer.camera,
 			onFilter: (matched) => {
 				display.show(matched);
@@ -30,6 +42,10 @@ fetchAircraft().then(
 				}
 			},
 			onPick: selection.select,
+		});
+		keepRefreshing((fresh) => {
+			display.update(mergeAircraft(display.aircraft(), fresh));
+			search.filter();
 		});
 	},
 	(error) => {
