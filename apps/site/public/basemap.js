@@ -1,6 +1,6 @@
 import { backgroundColor, fetchJson } from './common.js';
 
-async function loadBasemapStyle() {
+async function loadBasemapStyle(labelScale) {
 	const style = await fetchJson('https://tiles.openfreemap.org/styles/dark', 'Basemap style');
 	const layer = (id) => style.layers.find((entry) => entry.id === id);
 	const setPaint = (id, values) => Object.assign((layer(id).paint ??= {}), values);
@@ -78,14 +78,12 @@ async function loadBasemapStyle() {
 		'waterway',
 	);
 
-	// Cesium shows a tile at about 512 device pixels, so on a high-DPI screen the style's CSS pixel sizes would come out that many times smaller
-	const scale = window.devicePixelRatio;
 	const scaleSize = (size) => {
 		if (typeof size === 'number') {
-			return size * scale;
+			return size * labelScale;
 		}
 		if (size[0] === 'interpolate') {
-			return size.map((entry, index) => (index >= 4 && index % 2 === 0 ? entry * scale : entry));
+			return size.map((entry, index) => (index >= 4 && index % 2 === 0 ? entry * labelScale : entry));
 		}
 		throw new Error(`Unsupported size expression: ${JSON.stringify(size)}`);
 	};
@@ -147,7 +145,9 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 }
 
 export function addBasemap(viewer) {
-	Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(
+	// Cesium shows a tile at about 512 × maximumScreenSpaceError canvas pixels, so unscaled labels would shrink by the canvas pixel ratio over that
+	const labelScale = (window.devicePixelRatio * viewer.resolutionScale) / viewer.scene.globe.maximumScreenSpaceError;
+	Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle(labelScale)]).then(
 		([maplibregl, style]) => {
 			// All pooled maps share one worker pool, which MapLibre caps at 3 workers by default
 			maplibregl.setWorkerCount(Math.max(Math.floor(navigator.hardwareConcurrency / 2), 1));

@@ -21,6 +21,8 @@ export function createViewer() {
 		// A transparent canvas lets the gradient sky behind it show through
 		contextOptions: { webgl: { alpha: true } },
 	});
+	// Above 2 the extra pixels are hard to see, yet a phone at 3 would shade 2.25 times as many
+	viewer.resolutionScale = Math.min(window.devicePixelRatio, 2) / window.devicePixelRatio;
 	const { scene, camera } = viewer;
 	// The models are CC BY 3.0, which requires crediting the authors
 	viewer.creditDisplay.addStaticCredit(
@@ -40,8 +42,8 @@ export function createViewer() {
 			'Terrain: <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank">Mapzen, AWS Terrain Tiles</a>',
 		),
 	);
-	// The default of 2 picks coarser imagery levels, which then show up magnified and blurry
-	scene.globe.maximumScreenSpaceError = 1;
+	// The default of 2 picks coarser imagery levels, which then show up magnified and blurry; high-DPI screens stay sharp at 1.5 with about half the tiles
+	scene.globe.maximumScreenSpaceError = window.devicePixelRatio >= 2 ? 1.5 : 1;
 	scene.globe.baseColor = Cesium.Color.fromCssColorString(backgroundColor);
 	// Performance: the scene is static most of the time, so frames are only drawn when the camera moves or a tile loads; changes made from code need scene.requestRender()
 	scene.requestRenderMode = true;

@@ -22,7 +22,10 @@ async function handleLatestFlightState(_req: Request, env: Env): Promise<Respons
 	if (!flightState) {
 		return Response.json({ error: 'Flight state unavailable' }, { status: 503 });
 	}
-	return new Response(flightState, { headers: { 'Content-Type': 'application/json' } });
+	return new Response(flightState, {
+		// The data only changes every few minutes, so a reload within a minute skips the Worker and KV
+		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+	});
 }
 
 const AIRCRAFT_SUMMARY_TTL_SECONDS = 7 * 24 * 60 * 60;

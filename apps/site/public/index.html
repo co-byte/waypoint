@@ -9,14 +9,29 @@
 		<link rel="icon" href="/favicon.ico" sizes="32x32" />
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link rel="preconnect" href="https://tiles.openfreemap.org" />
 		<link rel="preconnect" href="https://s3.amazonaws.com" />
 		<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs" />
-		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap" />
-		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css" />
+		<!-- Only styles what Cesium creates, and Cesium loads later, so the first paint does not wait for it -->
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css"
+			media="print"
+			onload="this.media = 'all'"
+		/>
 		<link rel="stylesheet" href="/styles.css" />
+		<link rel="preload" href="/api/latest-flight-state" as="fetch" crossorigin />
+		<link rel="preload" href="https://tiles.openfreemap.org/styles/dark" as="fetch" crossorigin />
+		<link rel="modulepreload" href="/viewer.js" />
+		<link rel="modulepreload" href="/basemap.js" />
+		<link rel="modulepreload" href="/common.js" />
+		<link rel="modulepreload" href="/flight.js" />
+		<link rel="modulepreload" href="/selection.js" />
+		<link rel="modulepreload" href="/details.js" />
+		<link rel="modulepreload" href="/display.js" />
+		<link rel="modulepreload" href="/controls.js" />
+		<link rel="modulepreload" href="/aircraft.js" />
+		<link rel="modulepreload" href="/search.js" />
 	</head>
 
 	<body>
@@ -57,7 +72,7 @@
 			<div id="summary" hidden></div>
 		</aside>
 
-		<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js" defer></script>
 		<script type="module" src="/app.js"></script>
 	</body>
 </html>
