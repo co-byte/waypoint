@@ -64,10 +64,10 @@ export function createDisplay({ viewer, aircraft }) {
 	// so the scale is set every frame to what perspective gives, like the models: a marker is 2/3 of its model, never below the minimum
 	function updateMarkerScales() {
 		const focalLength = focalLengthPixels(viewer);
-		for (const entry of aircraft) {
+		for (const [entry, marker] of markerOf) {
 			const distance = Cesium.Cartesian3.distance(camera.positionWC, entry.position);
 			const markerLengthPixels = ((entry.model.drawLengthMeters * 2) / 3) * (focalLength / distance);
-			markerOf.get(entry).scale = Math.max(1, markerLengthPixels / minimumMarkerPixels);
+			marker.scale = Math.max(1, markerLengthPixels / minimumMarkerPixels);
 		}
 	}
 
@@ -94,9 +94,12 @@ export function createDisplay({ viewer, aircraft }) {
 			},
 			(error) => {
 				console.error(`Model ${file}.glb failed to load for aircraft ${entry.icao24}`, error);
+				// The aircraft may have left the feed while its model was loading
+				if (!markerOf.has(entry)) {
+					return null;
+				}
 				modelFailures.add(entry);
-				const marker = markerOf.get(entry);
-				marker.distanceDisplayCondition = undefined;
+				markerOf.get(entry).distanceDisplayCondition = undefined;
 				scene.requestRender();
 				return null;
 			},
@@ -113,27 +116,53 @@ export function createDisplay({ viewer, aircraft }) {
 		models.delete(entry);
 	}
 
-	// Aircraft without a model are always markers, at any distance
-	aircraft.forEach((entry) => {
+	// A direction in world space, so the marker keeps pointing along the true heading and climb however the camera turns
+	function markerDirection(entry) {
 		const heading = Cesium.Math.toRadians(entry.heading);
-		// A direction in world space, so the marker keeps pointing along the true heading and climb however the camera turns
-		const direction = Cesium.Matrix4.multiplyByPointAsVector(
+		return Cesium.Matrix4.multiplyByPointAsVector(
 			Cesium.Transforms.eastNorthUpToFixedFrame(entry.position),
 			new Cesium.Cartesian3(Math.sin(heading) * Math.cos(entry.pitch), Math.cos(heading) * Math.cos(entry.pitch), Math.sin(entry.pitch)),
 			new Cesium.Cartesian3(),
 		);
+	}
+
+	// Aircraft without a model are always markers, at any distance
+	function addMarker(entry) {
 		const marker = markers.add({
 			id: entry,
 			position: entry.position,
 			image: chevronImage,
 			height: chevronHeightUnits * chevronPixelsPerUnit,
 			width: chevronWidthUnits * chevronPixelsPerUnit,
-			alignedAxis: direction,
+			alignedAxis: markerDirection(entry),
 			distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
 			color: aircraftColor,
+			show: isVisible(entry),
 		});
 		markerOf.set(entry, marker);
-	});
+	}
+
+	function moveMarker(entry) {
+		const marker = markerOf.get(entry);
+		marker.position = entry.position;
+		marker.alignedAxis = markerDirection(entry);
+		models.get(entry)?.then((model) => {
+			if (model) {
+				model.modelMatrix = modelMatrix(entry);
+			}
+		});
+	}
+
+	function removeAircraft(entry) {
+		markers.remove(markerOf.get(entry));
+		markerOf.delete(entry);
+		if (models.has(entry)) {
+			hideModel(entry);
+		}
+		modelFailures.delete(entry);
+	}
+
+	aircraft.forEach(addMarker);
 
 	scene.preRender.addEventListener(updateMarkerScales);
 
@@ -149,10 +178,9 @@ export function createDisplay({ viewer, aircraft }) {
 	});
 	scene.requestRender();
 
-	const modeled = aircraft.filter((entry) => entry.model.file !== null);
 	const updateModels = () => {
-		for (const entry of modeled) {
-			if (modelFailures.has(entry)) {
+		for (const entry of markerOf.keys()) {
+			if (entry.model.file === null || modelFailures.has(entry)) {
 				continue;
 			}
 			const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelLoadRangeMeters;
@@ -170,16 +198,30 @@ export function createDisplay({ viewer, aircraft }) {
 
 	function show(matched) {
 		visible = matched;
-		for (const entry of aircraft) {
-			markerOf.get(entry).show = isVisible(entry);
+		markerOf.forEach((marker, entry) => {
+			marker.show = isVisible(entry);
 			models.get(entry)?.then((model) => {
 				if (model) {
 					model.show = isVisible(entry);
 				}
 			});
-		}
+		});
 		scene.requestRender();
 	}
 
-	return { ready, show };
+	function update(next) {
+		const kept = new Set(next);
+		[...markerOf.keys()].filter((entry) => !kept.has(entry)).forEach(removeAircraft);
+		for (const entry of next) {
+			if (markerOf.has(entry)) {
+				moveMarker(entry);
+			} else {
+				addMarker(entry);
+			}
+		}
+		updateModels();
+		scene.requestRender();
+	}
+
+	return { ready, show, update, aircraft: () => [...markerOf.keys()] };
 }

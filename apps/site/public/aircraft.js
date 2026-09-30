@@ -36,6 +36,15 @@ export async function fetchAircraft() {
 		});
 }
 
+// Reusing the objects lets the selection and search follow the new state; a changed category needs another model, which only a new aircraft gets
+export function mergeAircraft(current, fresh) {
+	const currentByIcao24 = new Map(current.map((entry) => [entry.icao24, entry]));
+	return fresh.map((entry) => {
+		const existing = currentByIcao24.get(entry.icao24);
+		return existing?.model === entry.model ? Object.assign(existing, entry) : entry;
+	});
+}
+
 // Categories are the labels the gold table delivers, not OpenSky's numeric codes
 const aircraftModels = [
 	{

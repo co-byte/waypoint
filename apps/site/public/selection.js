@@ -1,12 +1,11 @@
 import { accentColor } from './common.js';
-import { placeDetails, showDetails } from './details.js';
 import { inspectRange } from './display.js';
 
 // Keeps the box visible when the aircraft is only a marker
 const minimumBoxPixels = 24;
 const boxPaddingPixels = 6;
 
-export function createSelection({ viewer, flight }) {
+export function createSelection({ viewer, flight, details }) {
 	const { scene, camera } = viewer;
 	const selectionBox = document.getElementById('selection-box');
 	let selected = null;
@@ -39,7 +38,7 @@ export function createSelection({ viewer, flight }) {
 	scene.postRender.addEventListener(() => {
 		const box = selected && projectBox(selected);
 		selectionBox.hidden = !box;
-		placeDetails(box);
+		details.place(box);
 		if (!box) {
 			return;
 		}
@@ -56,14 +55,9 @@ export function createSelection({ viewer, flight }) {
 		flight.unlock();
 	}
 
-	function select(aircraft) {
-		const { drawLengthMeters } = aircraft.model;
-		const range = inspectRange(viewer, aircraft);
-		// A camera locked to another aircraft would fly relative to that frame
-		release();
-		selected = aircraft;
-		// Starting below the center keeps the line from cutting through the model's underside; the drop never goes below the ground
-		const drop = Math.min(drawLengthMeters * 0.05, Math.max(aircraft.altitude, 0));
+	// Starting below the center keeps the line from cutting through the model's underside; the drop never goes below the ground
+	function placeGroundLine(aircraft) {
+		const drop = Math.min(aircraft.model.drawLengthMeters * 0.05, Math.max(aircraft.altitude, 0));
 		const { longitude, latitude } = aircraft;
 		groundLine.positions = Cesium.Cartesian3.fromDegreesArrayHeights([
 			longitude,
@@ -73,10 +67,29 @@ export function createSelection({ viewer, flight }) {
 			latitude,
 			0,
 		]);
+	}
+
+	function select(aircraft) {
+		const range = inspectRange(viewer, aircraft);
+		// A camera locked to another aircraft would fly relative to that frame
+		release();
+		selected = aircraft;
+		placeGroundLine(aircraft);
 		groundLine.show = true;
-		showDetails(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
+		details.show(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
 		// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
 		flight.flyAround(aircraft, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
+	}
+
+	// A refresh updates the selected aircraft in place, so everything tied to it has to follow
+	function refresh() {
+		if (!selected) {
+			return;
+		}
+		placeGroundLine(selected);
+		details.update(selected);
+		flight.follow(selected);
+		scene.requestRender();
 	}
 
 	new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
@@ -94,5 +107,5 @@ export function createSelection({ viewer, flight }) {
 		}
 	});
 
-	return { current: () => selected, select, release };
+	return { current: () => selected, select, refresh, release };
 }

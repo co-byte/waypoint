@@ -1,6 +1,7 @@
-import { fetchAircraft } from './aircraft.js';
+import { fetchAircraft, mergeAircraft } from './aircraft.js';
 import { addBasemap } from './basemap.js';
 import { setupControls } from './controls.js';
+import { createDetails } from './details.js';
 import { createDisplay } from './display.js';
 import { createFlight } from './flight.js';
 import { createSelection } from './selection.js';
@@ -10,8 +11,30 @@ import { createViewer } from './viewer.js';
 const viewer = createViewer();
 addBasemap(viewer);
 const flight = createFlight(viewer);
-const selection = createSelection({ viewer, flight });
+const selection = createSelection({ viewer, flight, details: createDetails() });
 setupControls({ viewer, flight, selection });
+
+// Well below the worker's cache lifetime, so new data shows up soon after the cache takes it in
+const refreshIntervalMs = 60_000;
+
+// A hidden tab needs no updates, so it catches up once it is shown again
+function keepRefreshing(onAircraft) {
+	let fetchedAt = Date.now();
+	const refresh = () => {
+		fetchedAt = Date.now();
+		fetchAircraft().then(onAircraft, console.error);
+	};
+	setInterval(() => {
+		if (!document.hidden) {
+			refresh();
+		}
+	}, refreshIntervalMs);
+	document.addEventListener('visibilitychange', () => {
+		if (!document.hidden && Date.now() - fetchedAt >= refreshIntervalMs) {
+			refresh();
+		}
+	});
+}
 
 const loading = document.getElementById('loading');
 fetchAircraft().then(
@@ -20,8 +43,8 @@ fetchAircraft().then(
 		display.ready.then(() => {
 			loading.hidden = true;
 		});
-		setupSearch({
-			aircraft,
+		const search = setupSearch({
+			aircraft: display.aircraft,
 			camera: viewer.camera,
 			onFilter: (matched) => {
 				display.show(matched);
@@ -30,6 +53,11 @@ fetchAircraft().then(
 				}
 			},
 			onPick: selection.select,
+		});
+		keepRefreshing((fresh) => {
+			display.update(mergeAircraft(display.aircraft(), fresh));
+			search.filter();
+			selection.refresh();
 		});
 	},
 	(error) => {
