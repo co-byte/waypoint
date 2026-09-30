@@ -9,8 +9,8 @@ COLUMNS = ["longitude", "latitude", "geo_altitude", "category", "true_track", "v
 
 # Read by the site's Worker
 KV_KEY = "latest-flight-state"
-# Matches the window of the recent flight state, so the site stops showing aircraft once the pipeline stops pushing
-KV_EXPIRATION_TTL_SECONDS = 60 * 60
+# Keeps the site showing the last known aircraft for the rest of the day when the pipeline is down or out of compute quota
+KV_EXPIRATION_TTL_SECONDS = 24 * 60 * 60
 
 # Credentials, read from the "cloudflare" secret scope.
 ACCOUNT_ID = dbutils.secrets.get(scope="cloudflare", key="ACCOUNT_ID")
