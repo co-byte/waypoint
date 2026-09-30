@@ -151,8 +151,8 @@ export function addBasemap(viewer) {
 		([maplibregl, style]) => {
 			// All pooled maps share one worker pool, which MapLibre caps at 3 workers by default
 			maplibregl.setWorkerCount(Math.max(Math.floor(navigator.hardwareConcurrency / 2), 1));
-			// Each pooled map holds a WebGL context next to Cesium's; Chrome loses the least recently used one past 16 contexts, or 8 on Android
-			const poolSize = /Android/.test(navigator.userAgent) ? 6 : 12;
+			// Each pooled map holds a WebGL context and tile cache next to Cesium's; Chrome loses the least recently used context past 16, and phones run short on memory well before that
+			const poolSize = matchMedia('(pointer: coarse)').matches ? 3 : 12;
 			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, poolSize, () => viewer.scene.requestRender()));
 		},
 	);
