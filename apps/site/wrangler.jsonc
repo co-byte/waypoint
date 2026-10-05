@@ -54,7 +54,25 @@
 	"images": {
 		"binding": "IMAGES",
 		"remote": true
-	}
+	},
+	/**
+	 * Durable Objects (one instance keeps hexdb.io requests under two per second)
+	 * https://developers.cloudflare.com/durable-objects/
+	 */
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "HEXDB_LIMITER",
+				"class_name": "HexdbLimiter"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["HexdbLimiter"]
+		}
+	]
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings

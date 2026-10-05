@@ -1,9 +1,12 @@
-import { fetchAircraftRecord, fetchThumbnail } from './hexdb';
+import { fetchAircraftRecord, fetchThumbnail, HexdbBusyError, HexdbLimiter } from './hexdb';
+
+export { HexdbLimiter };
 
 export interface Env {
 	FLIGHT_CACHE: KVNamespace;
 	AI: Ai;
 	IMAGES: ImagesBinding;
+	HEXDB_LIMITER: DurableObjectNamespace<HexdbLimiter>;
 }
 
 class BadRequestError extends Error {}
@@ -77,7 +80,7 @@ async function handleAircraftSummary(req: Request, env: Env, ctx: ExecutionConte
 		`aircraft-summary:${icao24}`,
 		'text',
 		async () => {
-			const record = await fetchAircraftRecord(icao24);
+			const record = await fetchAircraftRecord(icao24, env);
 			return record && generateSummary(record, env);
 		},
 		env,
@@ -103,7 +106,7 @@ async function handleAircraftThumbnail(req: Request, env: Env, ctx: ExecutionCon
 		`aircraft-cutout:${icao24}`,
 		'arrayBuffer',
 		async () => {
-			const image = await fetchThumbnail(icao24);
+			const image = await fetchThumbnail(icao24, env);
 			return image && removeBackground(image, env);
 		},
 		env,
@@ -135,6 +138,9 @@ export default {
 		} catch (error) {
 			if (error instanceof BadRequestError) {
 				return Response.json({ error: error.message }, { status: 400 });
+			}
+			if (error instanceof HexdbBusyError) {
+				return Response.json({ error: error.message }, { status: 503, headers: { 'Retry-After': '10' } });
 			}
 			throw error;
 		}
