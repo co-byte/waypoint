@@ -15,3 +15,12 @@ export async function fetchAircraftRecord(icao24: string): Promise<string | null
 	const response = await fetchHexdb(`https://hexdb.io/api/v1/aircraft/${icao24}`, 'Aircraft record');
 	return response && response.text();
 }
+
+export async function fetchThumbnail(icao24: string): Promise<ReadableStream<Uint8Array> | null> {
+	const urlResponse = await fetchHexdb(`https://hexdb.io/hex-image?hex=${icao24}`, 'Aircraft photo URL');
+	if (!urlResponse) {
+		return null;
+	}
+	const imageResponse = await fetchHexdb(await urlResponse.text(), 'Aircraft photo');
+	return imageResponse && imageResponse.body;
+}

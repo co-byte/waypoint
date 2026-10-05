@@ -9,6 +9,8 @@ export function createDetails() {
 	const details = document.getElementById('details');
 	const groups = document.getElementById('groups');
 	const summary = document.getElementById('summary');
+	const showcase = document.getElementById('showcase');
+	const thumbnail = document.getElementById('thumbnail');
 	const header = document.getElementById('header');
 
 	function update(aircraft) {
@@ -42,6 +44,18 @@ export function createDetails() {
 		groups.replaceChildren(identity, state);
 	}
 
+	function showThumbnail(icao24, { isCurrent, onContentLoaded }) {
+		showcase.hidden = true;
+		thumbnail.onload = () => {
+			if (isCurrent()) {
+				showcase.hidden = false;
+				onContentLoaded();
+			}
+		};
+		thumbnail.onerror = () => console.error(`Aircraft thumbnail failed to load for ${icao24}`);
+		thumbnail.src = `/api/aircraft-thumbnail?icao24=${encodeURIComponent(icao24)}`;
+	}
+
 	function showSummary(icao24, { isCurrent, onContentLoaded }) {
 		summary.hidden = true;
 		summary.replaceChildren();
@@ -63,6 +77,7 @@ export function createDetails() {
 
 	function show(aircraft, callbacks) {
 		update(aircraft);
+		showThumbnail(aircraft.icao24, callbacks);
 		showSummary(aircraft.icao24, callbacks);
 	}
 
@@ -74,7 +89,8 @@ export function createDetails() {
 		const { offsetWidth, offsetHeight } = details;
 		const fitsRight = box.x + box.width + detailsGapPixels + offsetWidth <= innerWidth - detailsGapPixels;
 		const x = fitsRight ? box.x + box.width + detailsGapPixels : box.x - detailsGapPixels - offsetWidth;
-		const y = Math.min(Math.max(box.y, header.offsetHeight), innerHeight - detailsGapPixels - offsetHeight);
+		const top = header.offsetHeight + (showcase.hidden ? 0 : showcase.offsetHeight);
+		const y = Math.min(Math.max(box.y, top), innerHeight - detailsGapPixels - offsetHeight);
 		details.style.transform = `translate(${x}px, ${y}px)`;
 	}
 

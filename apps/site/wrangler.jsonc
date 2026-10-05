@@ -46,6 +46,14 @@
 	 */
 	"ai": {
 		"binding": "AI"
+	},
+	/**
+	 * Images (removes the background from aircraft thumbnails)
+	 * https://developers.cloudflare.com/images/optimization/transformations/bindings/
+	 */
+	"images": {
+		"binding": "IMAGES",
+		"remote": true
 	}
 	/**
 	 * Service Bindings (communicate between multiple Workers)

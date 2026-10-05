@@ -318,6 +318,71 @@ body {
 	font-size: 11px;
 }
 
+/* A stage on top of the card that grows upward, so the data below never shifts: the cut-out aircraft stands on a horizon, lit from behind and reflected in a gridded floor that recedes into the distance */
+#showcase {
+	position: absolute;
+	right: -1px;
+	bottom: calc(100% - 1px);
+	left: -2px;
+	height: 132px;
+	margin: 0;
+	border-right: 1px solid var(--line);
+	border-left: 2px solid var(--accent);
+	overflow: hidden;
+	background:
+		radial-gradient(ellipse 45% 55% at 50% 72%, rgba(201, 124, 61, 0.35), transparent),
+		linear-gradient(#2b3342, #1d222c 72%, #1b1b1b 72%, #181818);
+	box-shadow: inset 0 1px var(--line);
+}
+
+/* Separate top and left borders of different colors meet in a diagonal that notches the accent line, so the stage takes over the card's top border */
+#details:has(> #showcase:not([hidden])) {
+	border-top-width: 0;
+}
+
+#showcase::before {
+	content: '';
+	position: absolute;
+	top: 72%;
+	right: -150%;
+	left: -150%;
+	height: 100%;
+	transform: perspective(100px) rotateX(68deg);
+	transform-origin: 50% 0;
+	background:
+		linear-gradient(90deg, rgba(200, 215, 240, 0.13) 1px, transparent 1px) 50% 0 / 14px 14px,
+		linear-gradient(rgba(200, 215, 240, 0.13) 1px, transparent 1px) 50% 0 / 14px 14px;
+	mask-image: linear-gradient(transparent, #000 25%, transparent 70%);
+}
+
+#showcase[hidden] {
+	display: none;
+}
+
+/* The contact shadow under the wheels */
+#showcase::after {
+	content: '';
+	position: absolute;
+	right: 15%;
+	bottom: calc(28% - 4px);
+	z-index: 1;
+	left: 15%;
+	height: 8px;
+	background: radial-gradient(closest-side, rgba(0, 0, 0, 0.7), transparent);
+}
+
+#thumbnail {
+	position: absolute;
+	z-index: 2;
+	right: 0;
+	bottom: 28%;
+	left: 0;
+	max-width: 88%;
+	max-height: 62%;
+	margin: 0 auto;
+	-webkit-box-reflect: below 1px linear-gradient(transparent 55%, rgba(0, 0, 0, 0.3));
+}
+
 #summary svg {
 	float: left;
 	width: 12px;

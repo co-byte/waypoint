@@ -1,8 +1,9 @@
-import { fetchAircraftRecord } from './hexdb';
+import { fetchAircraftRecord, fetchThumbnail } from './hexdb';
 
 export interface Env {
 	FLIGHT_CACHE: KVNamespace;
 	AI: Ai;
+	IMAGES: ImagesBinding;
 }
 
 // Written by the flight tracking pipeline after each run
@@ -78,11 +79,38 @@ async function handleAircraftSummary(req: Request, env: Env, ctx: ExecutionConte
 	return Response.json({ summary });
 }
 
+async function removeBackground(image: ReadableStream<Uint8Array>, env: Env): Promise<ArrayBuffer> {
+	const result = await env.IMAGES.input(image)
+		.transform({ segment: 'foreground', width: 960, fit: 'scale-down' })
+		.transform({ trim: 'border' })
+		.output({ format: 'image/webp' }); // Keep transparancy
+	return result.response().arrayBuffer();
+}
+
+async function handleAircraftThumbnail(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+	const icao24 = new URL(req.url).searchParams.get('icao24')!;
+	const thumbnail = await cachedInKv(
+		`aircraft-cutout:${icao24}`,
+		'arrayBuffer',
+		async () => {
+			const image = await fetchThumbnail(icao24);
+			return image && removeBackground(image, env);
+		},
+		env,
+		ctx,
+	);
+	if (!thumbnail) {
+		return Response.json({ error: 'No thumbnail' }, { status: 404 });
+	}
+	return new Response(thumbnail, { headers: { 'Content-Type': 'image/webp' } });
+}
+
 type Handler = (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
 
 const routes: Record<string, Handler> = {
 	'GET /api/latest-flight-state': handleLatestFlightState,
 	'GET /api/aircraft-summary': handleAircraftSummary,
+	'GET /api/aircraft-thumbnail': handleAircraftThumbnail,
 };
 
 export default {
