@@ -1,34 +1,14 @@
 // Temporary dynamic calls; this information will be included in the data warehouse later on
 
-import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './index';
-
-const HEXDB_REQUEST_INTERVAL_MS = 500;
-const HEXDB_MAX_WAIT_MS = 10_000;
-
-// A single instance spaces out all hexdb.io requests, so they never exceed two per second
-export class HexdbLimiter extends DurableObject {
-	nextSlot = 0;
-
-	reserve(): number | null {
-		const now = Date.now();
-		const slot = Math.max(now, this.nextSlot);
-		if (slot - now > HEXDB_MAX_WAIT_MS) {
-			return null;
-		}
-		this.nextSlot = slot + HEXDB_REQUEST_INTERVAL_MS;
-		return slot - now;
-	}
-}
 
 export class HexdbBusyError extends Error {}
 
 async function fetchHexdb(url: string, name: string, env: Env): Promise<Response | null> {
-	const wait = await env.HEXDB_LIMITER.getByName('hexdb').reserve();
-	if (wait == null) {
-		throw new HexdbBusyError('Too many hexdb.io requests queued');
+	const { success } = await env.HEXDB_LIMITER.limit({ key: 'hexdb' });
+	if (!success) {
+		throw new HexdbBusyError('Too many hexdb.io requests');
 	}
-	await scheduler.wait(wait);
 	const response = await fetch(url);
 	if (response.status === 404) {
 		return null;

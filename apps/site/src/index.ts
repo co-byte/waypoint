@@ -1,12 +1,10 @@
-import { fetchAircraftRecord, fetchThumbnail, HexdbBusyError, HexdbLimiter } from './hexdb';
-
-export { HexdbLimiter };
+import { fetchAircraftRecord, fetchThumbnail, HexdbBusyError } from './hexdb';
 
 export interface Env {
 	FLIGHT_CACHE: KVNamespace;
 	AI: Ai;
 	IMAGES: ImagesBinding;
-	HEXDB_LIMITER: DurableObjectNamespace<HexdbLimiter>;
+	HEXDB_LIMITER: RateLimit;
 }
 
 class BadRequestError extends Error {}

@@ -56,21 +56,17 @@
 		"remote": true
 	},
 	/**
-	 * Durable Objects (one instance keeps hexdb.io requests under two per second)
-	 * https://developers.cloudflare.com/durable-objects/
+	 * Rate Limiting (keeps hexdb.io requests around two per second, counted per Cloudflare location)
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
 	 */
-	"durable_objects": {
-		"bindings": [
-			{
-				"name": "HEXDB_LIMITER",
-				"class_name": "HexdbLimiter"
-			}
-		]
-	},
-	"migrations": [
+	"ratelimits": [
 		{
-			"tag": "v1",
-			"new_sqlite_classes": ["HexdbLimiter"]
+			"name": "HEXDB_LIMITER",
+			"namespace_id": "1001",
+			"simple": {
+				"limit": 20,
+				"period": 10
+			}
 		}
 	]
 	/**
