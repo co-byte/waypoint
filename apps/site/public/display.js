@@ -1,4 +1,6 @@
 const minimumMarkerPixels = 5;
+// Typical for airliners, which make up most of the aircraft
+const cruiseSpeedMetersPerSecond = 250;
 // Leaves room around the aircraft for its marker and details
 const inspectLengthPixels = 150;
 // Beyond this distance a model is only a few pixels, so markers take over
@@ -49,7 +51,22 @@ function modelMatrix(aircraft) {
 	return Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation);
 }
 
-export function createDisplay({ viewer, aircraft }) {
+// Straight lines between the positions, at the speed the aircraft flew them; outside the track it stays at the nearest end
+function positionAt(track, time, result) {
+	const next = track.findIndex((point) => point.time > time);
+	if (next <= 0) {
+		return Cesium.Cartesian3.clone(track.at(next).position, result);
+	}
+	const [from, to] = [track[next - 1], track[next]];
+	return Cesium.Cartesian3.lerp(from.position, to.position, (time - from.time) / (to.time - from.time), result);
+}
+
+function medianPreviousTime(aircraft) {
+	const times = aircraft.map(({ track }) => (track.at(-2) ?? track.at(-1)).time).sort((a, b) => a - b);
+	return times[Math.floor(times.length / 2)];
+}
+
+export function createDisplay({ viewer, aircraft, onMove }) {
 	const { scene, camera } = viewer;
 	const markers = scene.primitives.add(new Cesium.BillboardCollection());
 	const models = new Map();
@@ -59,6 +76,10 @@ export function createDisplay({ viewer, aircraft }) {
 	let visible = null;
 
 	const isVisible = (entry) => !visible || visible.has(entry);
+
+	// Aircraft are shown one pipeline update behind their newest position, so they are still on their way to it when the next update lands;
+	// fixed after the first data, so later updates continue the motion instead of making it jump
+	const playbackDelaySeconds = aircraft.length ? Date.now() / 1000 - medianPreviousTime(aircraft) : 0;
 
 	// Cesium keeps a billboard the same size on screen at any distance and only interpolates its scale between two distances,
 	// so the scale is set every frame to what perspective gives, like the models: a marker is 2/3 of its model, never below the minimum
@@ -153,6 +174,21 @@ export function createDisplay({ viewer, aircraft }) {
 		});
 	}
 
+	function moveAircraft() {
+		const time = Date.now() / 1000 - playbackDelaySeconds;
+		for (const [entry, marker] of markerOf) {
+			marker.position = positionAt(entry.track, time, entry.position);
+		}
+		models.forEach((model, entry) =>
+			model.then((loaded) => {
+				if (loaded) {
+					loaded.modelMatrix = modelMatrix(entry);
+				}
+			}),
+		);
+		onMove();
+	}
+
 	function removeAircraft(entry) {
 		markers.remove(markerOf.get(entry));
 		markerOf.delete(entry);
@@ -164,6 +200,11 @@ export function createDisplay({ viewer, aircraft }) {
 
 	aircraft.forEach(addMarker);
 
+	// A cruising aircraft at the camera's height moves about a pixel per frame: smooth up close, while the world view barely redraws
+	scene.preUpdate.addEventListener(() => {
+		scene.maximumRenderTimeChange = camera.positionCartographic.height / (cruiseSpeedMetersPerSecond * focalLengthPixels(viewer));
+	});
+	scene.preRender.addEventListener(moveAircraft);
 	scene.preRender.addEventListener(updateMarkerScales);
 
 	// Nothing requests a frame when the image finishes loading, so the markers would stay invisible until the camera moves

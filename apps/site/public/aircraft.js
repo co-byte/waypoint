@@ -1,5 +1,16 @@
 import { fetchJson } from './common.js';
 
+// Oldest first, leaving out positions the pipeline could not complete
+function toTrack(recentPositions) {
+	return recentPositions
+		.filter(({ longitude, latitude, geo_altitude }) => longitude != null && latitude != null && geo_altitude != null)
+		.map(({ time_position, longitude, latitude, geo_altitude }) => ({
+			time: time_position,
+			position: Cesium.Cartesian3.fromDegrees(...[longitude, latitude, geo_altitude].map(Number)),
+		}))
+		.reverse();
+}
+
 export async function fetchAircraft() {
 	const { columns, rows } = await fetchJson('/api/latest-flight-state', 'Latest flight state');
 	// Number(null) is 0, which would turn a missing velocity into a vertical climb
@@ -23,6 +34,7 @@ export async function fetchAircraft() {
 				latitude,
 				altitude,
 				position: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
+				track: toTrack(row.recent_positions),
 				model: findAircraftModel(row.category),
 				category: row.category,
 				heading: optionalNumber(row.true_track) ?? 0,
