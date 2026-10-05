@@ -6,6 +6,8 @@ export interface Env {
 	IMAGES: ImagesBinding;
 }
 
+class BadRequestError extends Error {}
+
 // Written by the flight tracking pipeline after each run
 async function handleLatestFlightState(_req: Request, env: Env): Promise<Response> {
 	const flightState = await env.FLIGHT_CACHE.get('latest-flight-state');
@@ -16,6 +18,14 @@ async function handleLatestFlightState(_req: Request, env: Env): Promise<Respons
 		// The data only changes every few minutes, so a reload within a minute skips the Worker and KV
 		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
 	});
+}
+
+function readIcao24(req: Request): string {
+	const icao24 = new URL(req.url).searchParams.get('icao24');
+	if (!icao24 || !/^[0-9a-f]{6}$/i.test(icao24)) {
+		throw new BadRequestError('Expected icao24 to be six hex digits');
+	}
+	return icao24;
 }
 
 const AIRCRAFT_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -62,7 +72,7 @@ async function generateSummary(record: string, env: Env): Promise<string> {
 }
 
 async function handleAircraftSummary(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-	const icao24 = new URL(req.url).searchParams.get('icao24')!;
+	const icao24 = readIcao24(req);
 	const summary = await cachedInKv(
 		`aircraft-summary:${icao24}`,
 		'text',
@@ -88,7 +98,7 @@ async function removeBackground(image: ReadableStream<Uint8Array>, env: Env): Pr
 }
 
 async function handleAircraftThumbnail(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-	const icao24 = new URL(req.url).searchParams.get('icao24')!;
+	const icao24 = readIcao24(req);
 	const thumbnail = await cachedInKv(
 		`aircraft-cutout:${icao24}`,
 		'arrayBuffer',
@@ -120,6 +130,13 @@ export default {
 			return Response.json({ error: 'Not found' }, { status: 404 });
 		}
 
-		return handler(req, env, ctx);
+		try {
+			return await handler(req, env, ctx);
+		} catch (error) {
+			if (error instanceof BadRequestError) {
+				return Response.json({ error: error.message }, { status: 400 });
+			}
+			throw error;
+		}
 	},
 } satisfies ExportedHandler<Env>;
