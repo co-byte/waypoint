@@ -36,11 +36,22 @@ variables:
     default: gold
   last_known_flight_state_table:
     default: last_known_flight_state
+  recent_flight_state_view:
+    default: recent_flight_state
+  recent_positions_kept:
+    description: Number of positions per aircraft stored in the recent_flight_state (newest first)
+    default: 2
   reference_schema:
     default: reference
   flight_cache_kv_namespace_id:
     description: Cloudflare KV namespace the site's Worker reads the latest flight state from
     default: 1e82c18c98e4455392a6deb44f400014
+  flight_cache_kv_key:
+    description: Key the site's Worker reads the latest flight state from
+    default: latest-flight-state
+  flight_cache_kv_ttl_seconds:
+    description: Keeps the site showing the last known aircraft for the rest of the day when the pipeline is down or out of compute quota
+    default: 86400
   opensky_token_url:
     default: https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token
   website_principal:
