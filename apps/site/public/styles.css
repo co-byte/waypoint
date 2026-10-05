@@ -381,6 +381,20 @@ body {
 	max-height: 62%;
 	margin: 0 auto;
 	-webkit-box-reflect: below 1px linear-gradient(transparent 55%, rgba(0, 0, 0, 0.3));
+	animation: thumbnail-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes thumbnail-in {
+	from {
+		opacity: 0;
+		translate: -16px 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#thumbnail {
+		animation: none;
+	}
 }
 
 #summary svg {
