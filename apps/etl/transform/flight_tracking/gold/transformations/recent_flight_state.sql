@@ -5,7 +5,7 @@ WITH recent_positions AS (
   SELECT
     icao24,
     slice(
-      sort_array(collect_list(struct(time_position, longitude, latitude, geo_altitude)), false),
+      sort_array(collect_list(struct(unix_seconds(time_position) AS time_position, longitude, latitude, geo_altitude)), false),
       1,
       ${recent_positions_kept}
     ) AS recent_positions
