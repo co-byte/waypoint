@@ -1,15 +1,4 @@
-/**
- * Welcome to Cloudflare Workers!
- *
- *
- * - Run `npm run dev` to start a development server
- * - Run `npm run deploy` to publish the Worker
- *
- * Bind resources to the Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { fetchAircraftRecord } from './hexdb';
 
 export interface Env {
 	FLIGHT_CACHE: KVNamespace;
@@ -28,18 +17,28 @@ async function handleLatestFlightState(_req: Request, env: Env): Promise<Respons
 	});
 }
 
-const AIRCRAFT_SUMMARY_TTL_SECONDS = 7 * 24 * 60 * 60;
+const AIRCRAFT_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-// Temporary dynamic call; this information will be included in the data warehouse later on
-async function fetchAircraftRecord(icao24: string): Promise<string | null> {
-	const response = await fetch(`https://hexdb.io/api/v1/aircraft/${icao24}`);
-	if (response.status === 404) {
-		return null;
+type KvValue = { text: string; arrayBuffer: ArrayBuffer };
+
+// Nothing is cached when produce returns null, so a missing aircraft is looked up again next time
+async function cachedInKv<Type extends keyof KvValue>(
+	key: string,
+	type: Type,
+	produce: () => Promise<KvValue[Type] | null>,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<KvValue[Type] | null> {
+	const cached = (type === 'text' ? await env.FLIGHT_CACHE.get(key, 'text') : await env.FLIGHT_CACHE.get(key, 'arrayBuffer')) as
+		KvValue[Type] | null;
+	if (cached) {
+		return cached;
 	}
-	if (!response.ok) {
-		throw new Error(`Aircraft record request failed: ${response.status} ${await response.text()}`);
+	const value = await produce();
+	if (value) {
+		ctx.waitUntil(env.FLIGHT_CACHE.put(key, value, { expirationTtl: AIRCRAFT_CACHE_TTL_SECONDS }));
 	}
-	return response.text();
+	return value;
 }
 
 async function generateSummary(record: string, env: Env): Promise<string> {
@@ -63,15 +62,18 @@ async function generateSummary(record: string, env: Env): Promise<string> {
 
 async function handleAircraftSummary(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const icao24 = new URL(req.url).searchParams.get('icao24')!;
-	const key = `aircraft-summary:${icao24}`;
-	let summary = await env.FLIGHT_CACHE.get(key);
+	const summary = await cachedInKv(
+		`aircraft-summary:${icao24}`,
+		'text',
+		async () => {
+			const record = await fetchAircraftRecord(icao24);
+			return record && generateSummary(record, env);
+		},
+		env,
+		ctx,
+	);
 	if (!summary) {
-		const record = await fetchAircraftRecord(icao24);
-		if (!record) {
-			return Response.json({ error: 'Unknown aircraft' }, { status: 404 });
-		}
-		summary = await generateSummary(record, env);
-		ctx.waitUntil(env.FLIGHT_CACHE.put(key, summary, { expirationTtl: AIRCRAFT_SUMMARY_TTL_SECONDS }));
+		return Response.json({ error: 'Unknown aircraft' }, { status: 404 });
 	}
 	return Response.json({ summary });
 }
