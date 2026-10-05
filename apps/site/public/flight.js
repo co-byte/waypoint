@@ -38,8 +38,7 @@ export function createFlight(viewer) {
 	// A camera still flying picks up the new position when it locks on arrival
 	function follow(aircraft) {
 		if (!Cesium.Matrix4.equals(camera.transform, Cesium.Matrix4.IDENTITY)) {
-			const range = Cesium.Cartesian3.magnitude(camera.position);
-			camera.lookAt(aircraft.position, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
+			camera.lookAt(aircraft.position, Cesium.Cartesian3.clone(camera.position));
 		}
 	}
 
