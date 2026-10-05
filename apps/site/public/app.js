@@ -39,7 +39,7 @@ function keepRefreshing(onAircraft) {
 const loading = document.getElementById('loading');
 fetchAircraft().then(
 	(aircraft) => {
-		const display = createDisplay({ viewer, aircraft });
+		const display = createDisplay({ viewer, aircraft, onMove: selection.follow });
 		display.ready.then(() => {
 			loading.hidden = true;
 		});

@@ -57,16 +57,17 @@ export function createSelection({ viewer, flight, details }) {
 
 	// Starting below the center keeps the line from cutting through the model's underside; the drop never goes below the ground
 	function placeGroundLine(aircraft) {
-		const drop = Math.min(aircraft.model.drawLengthMeters * 0.05, Math.max(aircraft.altitude, 0));
-		const { longitude, latitude } = aircraft;
-		groundLine.positions = Cesium.Cartesian3.fromDegreesArrayHeights([
-			longitude,
-			latitude,
-			aircraft.altitude - drop,
-			longitude,
-			latitude,
-			0,
-		]);
+		const { longitude, latitude, height: altitude } = Cesium.Cartographic.fromCartesian(aircraft.position);
+		const drop = Math.min(aircraft.model.drawLengthMeters * 0.05, Math.max(altitude, 0));
+		groundLine.positions = Cesium.Cartesian3.fromRadiansArrayHeights([longitude, latitude, altitude - drop, longitude, latitude, 0]);
+	}
+
+	// Called every frame, as the selected aircraft moves
+	function follow() {
+		if (selected) {
+			placeGroundLine(selected);
+			flight.follow(selected);
+		}
 	}
 
 	function select(aircraft) {
@@ -107,5 +108,5 @@ export function createSelection({ viewer, flight, details }) {
 		}
 	});
 
-	return { current: () => selected, select, refresh, release };
+	return { current: () => selected, select, follow, refresh, release };
 }

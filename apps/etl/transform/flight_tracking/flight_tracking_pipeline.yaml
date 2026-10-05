@@ -20,8 +20,12 @@ resources:
         aircraft_changes_view: ${var.aircraft_changes_view}
         flight_state_table: ${var.flight_state_table}
         last_known_flight_state_table: ${var.last_known_flight_state_table}
+        recent_flight_state_view: ${var.recent_flight_state_view}
+        recent_positions_kept: ${var.recent_positions_kept}
         opensky_state_vectors_table: ${var.opensky_state_vectors_table}
         flight_cache_kv_namespace_id: ${var.flight_cache_kv_namespace_id}
+        flight_cache_kv_key: ${var.flight_cache_kv_key}
+        flight_cache_kv_ttl_seconds: ${var.flight_cache_kv_ttl_seconds}
       root_path: .
       libraries:
         - glob:
