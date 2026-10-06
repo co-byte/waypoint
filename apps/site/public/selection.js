@@ -77,7 +77,7 @@ export function createSelection({ viewer, flight, details }) {
 		selected = aircraft;
 		placeGroundLine(aircraft);
 		groundLine.show = true;
-		details.show(aircraft, { isCurrent: () => selected === aircraft, onSummary: () => scene.requestRender() });
+		details.show(aircraft, { isCurrent: () => selected === aircraft, onContentLoaded: () => scene.requestRender() });
 		// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
 		flight.flyAround(aircraft, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
 	}

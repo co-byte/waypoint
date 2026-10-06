@@ -46,7 +46,29 @@
 	 */
 	"ai": {
 		"binding": "AI"
-	}
+	},
+	/**
+	 * Images (removes the background from aircraft thumbnails)
+	 * https://developers.cloudflare.com/images/optimization/transformations/bindings/
+	 */
+	"images": {
+		"binding": "IMAGES",
+		"remote": true
+	},
+	/**
+	 * Rate Limiting (keeps hexdb.io requests around two per second, counted per Cloudflare location)
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+	 */
+	"ratelimits": [
+		{
+			"name": "HEXDB_LIMITER",
+			"namespace_id": "1001",
+			"simple": {
+				"limit": 20,
+				"period": 10
+			}
+		}
+	]
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
