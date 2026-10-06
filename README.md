@@ -18,15 +18,15 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 
 ### Animation
 
-- [ ] ![UI][ui] ![API][api] Update aircraft positions without reloading the page
-- [ ] ![UI][ui] ![API][api] ![Data][data] Send each aircraft's previous position as well and let the UI smoothly fill in the gaps (simple 2-point interpolation)
+- [x] ![UI][ui] ![API][api] Update aircraft positions without reloading the page
+- [x] ![UI][ui] ![API][api] ![Data][data] Send each aircraft's previous position as well and let the UI smoothly fill in the gaps (simple 2-point interpolation)
 - [ ] ![UI][ui] ![ML][ml] Predict the next position in `/etl`, so movement stays smooth without showing aircraft with a delay (the last few positions are known, the next one is predicted)
 
 ### Aircraft details
 
 - [ ] ![API][api] ![Data][data] Add [hexdb.io](https://hexdb.io/) as a data source for airframe information to `/etl` and expand the normalized data models
-- [ ] ![Data][data] ![UI][ui] Use [hexdb.io](https://hexdb.io/) to retrieve a thumbnail for each airframe
-- [ ] ![Data][data] ![UI][ui] Add a thumbnail and more aircraft info to the details panel
+- [x] ![Data][data] ![UI][ui] Use [hexdb.io](https://hexdb.io/) to retrieve a thumbnail for each airframe
+- [x] ![Data][data] ![UI][ui] Add a thumbnail and more aircraft info to the details panel
 - [ ] ![API][api] ![Data][data] Fetch airframe pictures from [airport-data.com](https://airport-data.com) instead of hexdb to get more pictures and metadata (eg info about photographer) per airframe
 - [ ] ![GenAI][genai] Find out whether a vision model can be used to pick the best of an aircraft's photos (lighting, sharpness, framing)
 
@@ -36,7 +36,7 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 
 ### Data quality
 
-- [ ] ![Data][data] Remove aircraft that stopped sending data (right now, every aircraft ever seen stays on the map)
+- [x] ![Data][data] Remove aircraft that stopped sending data (right now, every aircraft ever seen stays on the map)
 - [ ] ![Data][data] Fill in missing aircraft type info from new data, instead of only checking if an aircraft is already known
 - [ ] ![Data][data] ![Outliers][outliers] Check speed and altitude against limits for each aircraft type instead of one limit for all aircraft
 
@@ -48,7 +48,7 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 ### SecOps
 
 - [ ] ![Ops][ops] Move the site to a custom domain
-- [ ] ![Security][security] ![Ops][ops] Turn on Cloudflar's Bot Fight Mode to block bots (requires custom domain)
+- [ ] ![Security][security] ![Ops][ops] Turn on Cloudflare's Bot Fight Mode to block bots (requires custom domain)
 - [ ] ![Ops][ops] Deploy the Databricks jobs and pipeline from GitHub Actions, similar to the site
 
 ### Varia
