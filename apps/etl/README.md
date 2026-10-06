@@ -1,6 +1,6 @@
-# opensky-pipeline
+# Waypoint ETL
 
-Tracks near-live aircraft over Belgium (Flanders & Brussels) using OpenSky Network data, built on Databricks.
+Databricks pipeline that ingests live aircraft positions from the OpenSky Network, cleans them and pushes the latest state to the [site](../site)'s Cloudflare KV. Part of [Waypoint](../../README.md).
 
 ## Pipeline
 
@@ -42,12 +42,3 @@ erDiagram
     "aircraft (silver)" ||--o{ "flight_state (silver)" : "icao24"
     "flight_state (silver)" ||--|| "latest_flight_state (gold)" : "most recent state per icao24"
 ```
-
-## Future work
-- Include images of airframe by incorporating information from e.g. https://hexdb.io/ or https://airport-data.com
-- Improve outlier detection, e.g. velocity bounds relative to aircraft type instead of one fixed range for everything, eventually informed by the actual airframe's known limits via additional lookups/enrichment.
-- Creating a gold table to make it easy to see which areas see the most traffic.
-
-## Related
-
-The [Waypoint](https://github.com/co-byte/waypoint) project features a website that currently consumes latest_flight_state.
