@@ -1,14 +1,19 @@
-# opensky-pipeline
+# Waypoint ETL
 
-Tracks near-live aircraft over Belgium (Flanders & Brussels) using OpenSky Network data, built on Databricks.
+Databricks pipeline that ingests live aircraft positions from the OpenSky Network, cleans them and pushes the latest state to the [site](../site)'s Cloudflare KV. Part of [Waypoint](../../README.md).
 
 ## Pipeline
 
+A job runs the pipeline every 5 minutes.
+
 ```mermaid
 flowchart LR
-    raw[("Raw OpenSky data")] --> clean["Clean & validate"] --> enrich["Enrich"]
-    enrich --> aircraft[("Aircraft info")]
-    enrich --> history[("Flight history")] --> latest[("Latest positions")]
+    opensky["OpenSky API"] --> vectors[("opensky_state_vectors (bronze)")]
+    vectors --> cleaned["opensky_cleaned"] --> enriched["opensky_enriched"]
+    reference[("Reference tables (category, position source)")] --> enriched
+    enriched --> aircraft[("aircraft (silver)")]
+    enriched --> flight_state[("flight_state (silver)")] --> last_known[("last_known_flight_state (gold)")]
+    last_known --> recent["recent_flight_state (gold view)"] --> kv[("Cloudflare KV")]
 ```
 
 ## Tables
@@ -17,37 +22,43 @@ flowchart LR
 erDiagram
     "aircraft (silver)" {
         string icao24 PK
-        int category
+        string category
         string origin_country
     }
 
     "flight_state (silver)" {
         string icao24 PK, FK
         timestamp time_position PK
+        string callsign
         double longitude
         double latitude
+        double geo_altitude
         double baro_altitude
         double velocity
-        boolean baro_altitude_outlier
+        double true_track
+        double vertical_rate
+        string category
+        timestamp ingested_at
+        boolean baro_altitude_outlier "one flag per plausibility check"
     }
 
-    "latest_flight_state (gold)" {
+    "last_known_flight_state (gold)" {
         string icao24 PK, FK
+        timestamp time_position
         double longitude
         double latitude
-        double baro_altitude
-        double velocity
+        double geo_altitude
+        timestamp ingested_at
+    }
+
+    "recent_flight_state (gold view)" {
+        string icao24 PK, FK
+        array recent_positions "newest positions from the last hour"
     }
 
     "aircraft (silver)" ||--o{ "flight_state (silver)" : "icao24"
-    "flight_state (silver)" ||--|| "latest_flight_state (gold)" : "most recent state per icao24"
+    "flight_state (silver)" ||--o| "last_known_flight_state (gold)" : "latest state per icao24"
+    "last_known_flight_state (gold)" ||--o| "recent_flight_state (gold view)" : "seen in the last hour"
 ```
 
-## Future work
-- Include images of airframe by incorporating information from e.g. https://hexdb.io/ or https://airport-data.com
-- Improve outlier detection, e.g. velocity bounds relative to aircraft type instead of one fixed range for everything, eventually informed by the actual airframe's known limits via additional lookups/enrichment.
-- Creating a gold table to make it easy to see which areas see the most traffic.
-
-## Related
-
-The [Waypoint](https://github.com/co-byte/waypoint) project features a website that currently consumes latest_flight_state.
+`last_known_flight_state` has the same columns as `flight_state`, and `recent_flight_state` adds `recent_positions` to them; only the key columns are shown.

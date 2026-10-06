@@ -1,67 +1,64 @@
+<div align="center">
+
 # Waypoint
 
-![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-orange)
-[![Last deploy](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fco-byte%2Fwaypoint%2Factions%2Fworkflows%2Fcd.yaml%2Fruns%3Fstatus%3Dsuccess%26branch%3Dmain%26per_page%3D1&query=%24.workflow_runs%5B0%5D.updated_at&label=last%20deploy&cacheSeconds=300)](https://github.com/co-byte/waypoint/actions/workflows/cd.yaml)
+A live 3D map of aircraft around the globe, built on [OpenSky Network](https://opensky-network.org/) data.
+
+[![CD](https://github.com/co-byte/waypoint/actions/workflows/cd.yaml/badge.svg)](https://github.com/co-byte/waypoint/actions/workflows/cd.yaml)
 [![License: MIT](https://img.shields.io/github/license/co-byte/waypoint)](LICENSE)
 
+**[Live demo](https://waypoint.vandersteencobe.workers.dev/)**
 
-![Screenshot of the flight tracker map](https://placehold.co/1200x600?text=Screenshot+coming+soon)
+![An Emirates Boeing 777 selected over Brussels, with its photo, altitude, speed and AI summary in the details panel](https://repository-images.githubusercontent.com/1375205848/61a497f7-e88f-436d-98a7-9f508bcc1722)
 
-A web map that shows live aircraft positions from [OpenSky Network](https://opensky-network.org/) data. 
+![Databricks](https://img.shields.io/badge/Databricks-FF3621?logo=databricks&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare%20Workers-F38020?logo=cloudflareworkers&logoColor=white)
+![CesiumJS](https://img.shields.io/badge/CesiumJS-6CADDF?logo=cesium&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+
+</div>
+
+Coverage depends on where OpenSky receives data, which varies by region and time of day.
+
+## Features
+
+- ✈️ A 3D model for each aircraft category, from light aircraft and helicopters to airliners and heavies
+- 🔍 Search by callsign or ICAO address, with a count of matching aircraft
+- 🖼️ A details panel with a photo of the airframe and a short AI-written summary
+- 🌍 Smooth movement between position updates, without reloading the page
 
 ## How it works
 
-1. After each run, the Databricks pipeline (`apps/etl/`) writes the latest flight data to Cloudflare KV, where a Cloudflare Worker (`apps/site/`) serves it.
-2. The page uses [CesiumJS](https://cesium.com/platform/cesiumjs/) to show a 3D globe with each aircraft at its position and altitude.
+```mermaid
+flowchart LR
+    opensky["OpenSky Network"] --> ingest
+
+    subgraph databricks["Databricks, every 5 minutes"]
+        ingest["Ingest"] --> silver["Silver"] --> gold["Gold"]
+    end
+
+    gold --> kv[("Cloudflare KV")] --> worker["Cloudflare Worker"] --> cesium["CesiumJS globe"]
+    hexdb["hexdb.io"] -- "airframe info and photos" --> worker
+    ai["Workers AI"] -- "aircraft summaries" --> worker
+```
+
+## Repository layout
+
+| Folder                               | Contents                                                            |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| [`apps/etl`](apps/etl)               | Databricks pipeline that ingests, cleans and serves the flight data |
+| [`apps/site`](apps/site)             | Cloudflare Worker and the CesiumJS front end                        |
+| [`apps/monitoring`](apps/monitoring) | Databricks dashboard that tracks compute usage                      |
 
 ## Roadmap
 
-### Animation
+Planned work is tracked in [GitHub issues](https://github.com/co-byte/waypoint/issues).
 
-- [x] ![UI][ui] ![API][api] Update aircraft positions without reloading the page
-- [x] ![UI][ui] ![API][api] ![Data][data] Send each aircraft's previous position as well and let the UI smoothly fill in the gaps (simple 2-point interpolation)
-- [ ] ![UI][ui] ![ML][ml] Predict the next position in `/etl`, so movement stays smooth without showing aircraft with a delay (the last few positions are known, the next one is predicted)
+## Credits
 
-### Aircraft details
-
-- [ ] ![API][api] ![Data][data] Add [hexdb.io](https://hexdb.io/) as a data source for airframe information to `/etl` and expand the normalized data models
-- [x] ![Data][data] ![UI][ui] Use [hexdb.io](https://hexdb.io/) to retrieve a thumbnail for each airframe
-- [x] ![Data][data] ![UI][ui] Add a thumbnail and more aircraft info to the details panel
-- [ ] ![API][api] ![Data][data] Fetch airframe pictures from [airport-data.com](https://airport-data.com) instead of hexdb to get more pictures and metadata (eg info about photographer) per airframe
-- [ ] ![GenAI][genai] Find out whether a vision model can be used to pick the best of an aircraft's photos (lighting, sharpness, framing)
-
-### Airports
-
-- [ ] ![Data][data] Load airport data from [hexdb.io](https://hexdb.io/)
-
-### Data quality
-
-- [x] ![Data][data] Remove aircraft that stopped sending data (right now, every aircraft ever seen stays on the map)
-- [ ] ![Data][data] Fill in missing aircraft type info from new data, instead of only checking if an aircraft is already known
-- [ ] ![Data][data] ![Outliers][outliers] Check speed and altitude against limits for each aircraft type instead of one limit for all aircraft
-
-### Aircraft summaries
-
-- [ ] ![GenAI][genai] ![Ops][ops] Send Workers AI calls through AI Gateway to cache answers
-- [ ] ![GenAI][genai] ![UI][ui] Search the map in plain English, like "helicopters over Brussels"
-
-### SecOps
-
-- [ ] ![Ops][ops] Move the site to a custom domain
-- [ ] ![Security][security] ![Ops][ops] Turn on Cloudflare's Bot Fight Mode to block bots (requires custom domain)
-- [ ] ![Ops][ops] Deploy the Databricks jobs and pipeline from GitHub Actions, similar to the site
-
-### Varia
-
-- [ ] ![Data][data] Add a table that shows the busiest areas
-- [ ] ![Data][data] Track how many aircraft are shown, optionally by category, for live README badges
-- [ ] ![UI][ui] ![Outliers][outliers] Highlight unusual flights, like emergency codes, circling or odd altitudes
-
-[ui]: https://img.shields.io/badge/UI-1f6feb
-[api]: https://img.shields.io/badge/API-8250df
-[data]: https://img.shields.io/badge/Data-1a7f37
-[ml]: https://img.shields.io/badge/ML-bf8700
-[outliers]: https://img.shields.io/badge/Outliers-1b7c83
-[genai]: https://img.shields.io/badge/GenAI-e16f24
-[security]: https://img.shields.io/badge/Security-cf222e
-[ops]: https://img.shields.io/badge/Ops-6e7781
+- Flight data: [OpenSky Network](https://opensky-network.org/)
+- Airframe info and photos: [hexdb.io](https://hexdb.io/)
+- 3D models: various authors via [Poly Pizza](https://poly.pizza/), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), see [the model credits](apps/site/public/models/CREDITS.md)
+- Basemap: [OpenFreeMap](https://openfreemap.org/), [© OpenMapTiles](https://www.openmaptiles.org/), data from [OpenStreetMap](https://www.openstreetmap.org/copyright)
+- Terrain: [Mapzen, AWS Terrain Tiles](https://github.com/tilezen/joerd/blob/master/docs/attribution.md)
